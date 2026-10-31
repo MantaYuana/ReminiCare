@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { suara } from '../../lib/suara';
 import Sesi from '../../components/Sesi';
 import type { Sisi } from '../../lib/kinematik/tipe';
+import { AMBANG_VERSI, SUARA_CONDONG } from '../../lib/kinematik/tipe';
 
-// Nilai placeholder — akan diganti konstanta dari mesin asli saat integrasi
-const AMBANG_VERSI = 'v1';
-
+// Catatan: form resep tamu (Task 3) menggantikan pemilihan lengan ini
+// setelah FormResep mode="tamu" dari Pindra tersedia.
 export default function Page() {
   const [sisi, setSisi] = useState<Sisi | null>(null);
 
@@ -24,55 +24,45 @@ export default function Page() {
           mode_koreksi: 'penuh',
           kalimat_condong: 'sandaran',
           kandidat_condong: 'a',
-          suara_condong: false,
+          suara_condong: SUARA_CONDONG,
           ambang_versi: AMBANG_VERSI,
           sisi,
         }}
         simpan={false}
         tamu
-        kembali="/"
+        kembali="/tamu"
+        onSelesai={() => setSisi(null)}
       />
     );
   }
 
   return (
-    <main className="flex flex-col items-center justify-center gap-8 min-h-screen p-6">
-      {/* Spanduk tamu */}
-      <div
-        role="status"
-        className="w-full max-w-sm bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-base text-center"
-      >
+    <main className="rc-wrap min-h-screen justify-center">
+      <div role="status" className="rc-info text-center">
         Mode tamu: data tidak disimpan
       </div>
 
-      <h1 className="text-2xl font-bold">Pilih lengan yang dilatih</h1>
+      <div>
+        <h1 className="rc-judul">Pilih lengan yang dilatih</h1>
+        <p className="rc-sub">Anda bisa mencoba latihan tanpa membuat akun.</p>
+      </div>
 
-      <div className="w-full max-w-sm flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <button
-          onClick={async () => {
-            await suara.buka();
-            setSisi('kiri');
-          }}
-          className="btn-utama bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+          onClick={async () => { await suara.buka(); setSisi('kiri'); }}
+          className="rc-btn"
         >
           Lengan kiri
         </button>
-
         <button
-          onClick={async () => {
-            await suara.buka();
-            setSisi('kanan');
-          }}
-          className="btn-utama bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+          onClick={async () => { await suara.buka(); setSisi('kanan'); }}
+          className="rc-btn"
         >
           Lengan kanan
         </button>
       </div>
 
-      <button
-        onClick={() => window.history.back()}
-        className="btn-sekunder text-gray-600 underline focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
-      >
+      <button onClick={() => window.history.back()} className="rc-tautan self-center">
         Kembali
       </button>
     </main>

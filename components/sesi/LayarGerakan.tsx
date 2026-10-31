@@ -36,21 +36,21 @@ export default function LayarGerakan({
     <div className="relative z-10 flex h-screen flex-col justify-between p-4 text-white">
       {/* Atas: nama gerakan + keyakinan */}
       <div className="flex items-start justify-between gap-3">
-        <div className="rounded-2xl bg-black/60 px-4 py-2 backdrop-blur">
-          <p className="text-sm text-white/80">Gerakan</p>
+        <div className="rounded-2xl bg-ink/75 px-4 py-2 backdrop-blur">
+          <p className="text-base text-white/80">Gerakan</p>
           <p className="text-lg font-semibold">{NAMA_GERAKAN[gerakan] ?? gerakan}</p>
         </div>
         <div
-          className="rounded-2xl bg-black/60 px-4 py-2 backdrop-blur"
+          className="rounded-2xl bg-ink/75 px-4 py-2 backdrop-blur"
           role="meter"
           aria-label={`Keyakinan kamera ${yakin} persen`}
           aria-valuenow={yakin}
           aria-valuemin={0}
           aria-valuemax={100}
         >
-          <p className="text-sm text-white/80">Keyakinan {yakin}%</p>
+          <p className="text-base text-white/80">Keyakinan {yakin}%</p>
           <div className="mt-1 h-2 w-28 rounded-full bg-white/25">
-            <div className="h-2 rounded-full bg-emerald-300 transition-all duration-200" style={{ width: `${yakin}%` }} />
+            <div className="h-2 rounded-full bg-brand-600 transition-all duration-200" style={{ width: `${yakin}%` }} />
           </div>
         </div>
       </div>
@@ -67,7 +67,7 @@ export default function LayarGerakan({
       {/* Bawah: hitungan, progres, tombol */}
       <div className="flex flex-col gap-3">
         <div className="flex items-end justify-between gap-3">
-          <div className="rounded-2xl bg-black/65 px-5 py-3 backdrop-blur">
+          <div className="rounded-2xl bg-ink/75 px-5 py-3 backdrop-blur">
             <div
               className="text-7xl font-bold leading-none tabular-nums"
               aria-live="polite"
@@ -77,7 +77,7 @@ export default function LayarGerakan({
               <span className="text-4xl font-semibold text-white/70"> / {totalRepPerGerakan}</span>
             </div>
             <div className="mt-3 h-2.5 w-44 rounded-full bg-white/25" aria-hidden="true">
-              <div className="h-2.5 rounded-full bg-emerald-300 transition-all duration-300" style={{ width: `${persen}%` }} />
+              <div className="h-2.5 rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${persen}%` }} />
             </div>
           </div>
 

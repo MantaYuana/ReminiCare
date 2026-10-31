@@ -12,7 +12,7 @@ export default function Langkah({ aktif }: { aktif: 0 | 1 | 2 | 3 }) {
       {TAHAP.map((nama, i) => (
         <li key={nama} className="flex-1">
           <div className={`h-1.5 rounded-full ${i <= aktif ? 'bg-brand-700' : 'bg-slate-300'}`} />
-          <span className={`mt-1 block text-sm ${i === aktif ? 'font-semibold text-ink' : 'text-muted'}`}>
+          <span className={`mt-1 block text-base ${i === aktif ? 'font-semibold text-ink' : 'text-muted'}`}>
             {nama}
           </span>
         </li>

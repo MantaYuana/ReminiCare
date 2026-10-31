@@ -61,11 +61,11 @@ export default function LayarRingkasan({
         )}
         <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 pt-4">
           <div>
-            <p className="text-sm text-muted">Total repetisi</p>
+            <p className="text-base text-muted">Total repetisi</p>
             <p className="text-3xl font-bold tabular-nums">{totalRep}</p>
           </div>
           <div>
-            <p className="text-sm text-muted">Repetisi benar</p>
+            <p className="text-base text-muted">Repetisi benar</p>
             <p className="text-3xl font-bold tabular-nums">{repBenar}</p>
           </div>
         </div>

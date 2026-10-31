@@ -1,17 +1,29 @@
 @import "tailwindcss";
 
 /* ReminiCare – Global styles
-   NFR-6: font dasar ≥ 18px, tombol utama ≥ 64px, tombol sekunder ≥ 44×44px */
+   NFR-6: font dasar ≥ 18px, tombol utama ≥ 64px, tombol sekunder ≥ 44×44px
+
+   Palet: E1F3F3 (mint), 68BEBF (aqua), 004F64 (teal tua), 141819 (tinta).
+   68BEBF hanya untuk aksen dan isian; teks di atas putih/mint memakai 004F64 atau 141819. */
 
 @theme {
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
-  --color-ink: #0f172a;
-  --color-muted: #475569;
-  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --color-brand-50: #E1F3F3;
+  --color-brand-100: color-mix(in srgb, #68BEBF 45%, #E1F3F3);
+  --color-brand-600: #68BEBF;
+  --color-brand-700: #004F64;
+  --color-brand-800: color-mix(in srgb, #004F64 70%, #141819);
+  --color-ink: #141819;
+  --color-muted: color-mix(in srgb, #141819 78%, white);
+
+  /* Skala netral dialihkan ke turunan palet, jadi kelas slate-* di komponen pasien ikut berganti */
+  --color-slate-50: #E1F3F3;
+  --color-slate-100: color-mix(in srgb, #68BEBF 28%, #E1F3F3);
+  --color-slate-200: color-mix(in srgb, #004F64 18%, white);
+  --color-slate-300: color-mix(in srgb, #004F64 36%, white);
+  --color-slate-600: color-mix(in srgb, #141819 85%, white);
+  --color-slate-900: #141819;
+
+  --font-sans: var(--font-poppins), "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
 :root {
@@ -23,7 +35,7 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-ink font-sans;
+  @apply bg-white text-ink font-sans;
   font-size: 1rem; /* 18px via html font-size */
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -31,7 +43,7 @@ body {
 
 /* Pastikan fokus terlihat jelas (NFR-6 aksesibilitas) */
 :focus-visible {
-  outline: 3px solid #0f766e;
+  outline: 3px solid #004F64;
   outline-offset: 2px;
 }
 
@@ -58,7 +70,7 @@ body {
 }
 
 .rc-judul {
-  @apply text-2xl font-bold tracking-tight text-ink;
+  @apply text-2xl font-semibold tracking-tight text-brand-700;
 }
 
 .rc-sub {
@@ -76,13 +88,20 @@ body {
 /* Tombol sekunder ≥ 48px */
 .rc-btn-2 {
   @apply inline-flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] px-5 py-2 rounded-xl text-base font-semibold
+         bg-white text-brand-700 border-2 border-brand-700 transition-colors
+         hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+/* Tombol Google / tamu: putih berbingkai, ≥ 56px */
+.rc-btn-google {
+  @apply inline-flex items-center justify-center gap-3 min-h-[56px] w-full px-5 py-2 rounded-xl text-base font-medium
          bg-white text-ink border border-slate-300 transition-colors
-         hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed;
+         hover:bg-brand-50 hover:border-brand-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-slate-300;
 }
 
 .rc-btn-bahaya {
   @apply inline-flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] px-5 py-2 rounded-xl text-base font-semibold
-         bg-white text-red-700 border border-red-300 transition-colors hover:bg-red-50;
+         bg-white text-red-700 border-2 border-red-300 transition-colors hover:bg-red-50;
 }
 
 .rc-tautan {
@@ -98,9 +117,9 @@ body {
 }
 
 .rc-ok {
-  @apply rounded-xl border border-brand-600/40 bg-brand-50 px-4 py-3 text-base text-brand-800;
+  @apply rounded-xl border border-brand-600 bg-brand-50 px-4 py-3 text-base text-brand-700;
 }
 
 .rc-chip {
-  @apply inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-800 border border-brand-100;
+  @apply inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-base font-semibold text-brand-700 border border-brand-600;
 }

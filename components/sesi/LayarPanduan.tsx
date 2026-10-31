@@ -40,7 +40,7 @@ export default function LayarPanduan({ bantuan, gating, onSiap }: PropsLayarPand
           <li key={t} className="flex gap-3 text-base">
             <span
               aria-hidden="true"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-bold text-brand-800"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-base font-bold text-brand-800"
             >
               {i + 1}
             </span>

@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Aplikasi rehabilitasi fisioterapi mandiri',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#2563eb',
+    background_color: '#FFFFFF',
+    theme_color: '#004F64',
     icons: [
       {
         src: '/icons/icon-192.png',

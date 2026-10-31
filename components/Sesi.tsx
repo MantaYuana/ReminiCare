@@ -321,7 +321,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   const tahap = layar.nama === 'panduan' ? 0 : layar.nama === 'kalibrasi' ? 1 : null;
 
   return (
-    <div className={`relative min-h-screen ${layar.nama === 'gerakan' ? 'bg-black' : 'bg-slate-50'}`}>
+    <div className={`relative min-h-screen ${layar.nama === 'gerakan' ? 'bg-black' : 'bg-white'}`}>
       {/* Penanda tahap (slot tetap supaya <video> di bawah tidak dipasang ulang) */}
       {tahap !== null ? <Langkah aktif={tahap} /> : <span hidden />}
 

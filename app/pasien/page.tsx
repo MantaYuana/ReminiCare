@@ -138,7 +138,7 @@ export default function Page() {
         Keluar
       </button>
       {antreanCount > 0 && (
-        <p className="text-sm text-muted" role="status">
+        <p className="text-base text-muted" role="status">
           Tunggu {antreanCount} sesi terkirim dulu, supaya tidak hilang atau terkirim atas nama akun lain.
         </p>
       )}

@@ -83,8 +83,8 @@ export function langkah(
 
     case 'repetisi': {
       if (l.nama !== 'gerakan') return next({});
-      // hitungan dari mesin kumulatif per gerakan → ganti porsi gerakan ini, jangan dijumlah ulang
-      const totalRep = l.totalRep - l.hitungan + a.hitungan;
+      // hitungan naik 1 per repetisi dalam satu gerakan; totalRep menjumlah semua gerakan
+      const totalRep = l.totalRep + Math.max(0, a.hitungan - l.hitungan);
       const gerakanSelesai = a.hitungan >= resep.repetisi;
       if (!gerakanSelesai) {
         return next({ hitungan: a.hitungan, totalRep });

@@ -2093,32 +2093,6 @@ export default function DetailPasienPage(): React.JSX.Element {
           onBerhasil={() => muat(false)}
         />
       </section>
-
-      {/* 9. TOMBOL DEMO (SPEC §10.4 butir 9: hanya bila peranTerapis?.demo) */}
-      {/* Rute /pasien/sesi adalah milik Ari; tombol ini disediakan untuk pengujian mode demo */}
-      {peranTerapis?.demo && (
-        <section
-          aria-labelledby="judul-demo"
-          className="rounded-xl border border-purple-200 bg-purple-50 p-6 space-y-4"
-        >
-          <div className="space-y-1">
-            <h2 id="judul-demo" className="text-2xl font-bold text-purple-950">
-              Uji Coba Latihan Mandiri (Mode Demo)
-            </h2>
-            <p className="text-lg text-purple-900">
-              Sebagai akun fisioterapis demo, Anda dapat menjalankan simulasi latihan dengan resep pasien ini.
-            </p>
-          </div>
-          <div>
-            <Link
-              href={`/pasien/sesi?pasien=${pasien.id}`}
-              className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-purple-700 px-8 py-4 text-xl font-bold text-white hover:bg-purple-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-500 shadow-sm"
-            >
-              Latih sebagai pasien ini
-            </Link>
-          </div>
-        </section>
-      )}
     </main>
   );
 }

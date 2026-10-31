@@ -1,7 +1,30 @@
 @import "tailwindcss";
 
 /* ReminiCare – Global styles
-   NFR-6: font dasar ≥ 18px, tombol utama ≥ 64px, tombol sekunder ≥ 44×44px */
+   NFR-6: font dasar ≥ 18px, tombol utama ≥ 64px, tombol sekunder ≥ 44×44px
+
+   Palet: E1F3F3 (mint), 68BEBF (aqua), 004F64 (teal tua), 141819 (tinta).
+   68BEBF hanya untuk aksen dan isian; teks di atas putih/mint memakai 004F64 atau 141819. */
+
+@theme {
+  --color-brand-50: #E1F3F3;
+  --color-brand-100: color-mix(in srgb, #68BEBF 45%, #E1F3F3);
+  --color-brand-600: #68BEBF;
+  --color-brand-700: #004F64;
+  --color-brand-800: color-mix(in srgb, #004F64 70%, #141819);
+  --color-ink: #141819;
+  --color-muted: color-mix(in srgb, #141819 78%, white);
+
+  /* Skala netral dialihkan ke turunan palet, jadi kelas slate-* di komponen pasien ikut berganti */
+  --color-slate-50: #E1F3F3;
+  --color-slate-100: color-mix(in srgb, #68BEBF 28%, #E1F3F3);
+  --color-slate-200: color-mix(in srgb, #004F64 18%, white);
+  --color-slate-300: color-mix(in srgb, #004F64 36%, white);
+  --color-slate-600: color-mix(in srgb, #141819 85%, white);
+  --color-slate-900: #141819;
+
+  --font-sans: var(--font-poppins), "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
 
 :root {
   --font-size-base: 18px;
@@ -12,7 +35,7 @@ html {
 }
 
 body {
-  @apply bg-white text-gray-900;
+  @apply bg-white text-ink font-sans;
   font-size: 1rem; /* 18px via html font-size */
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -20,9 +43,11 @@ body {
 
 /* Pastikan fokus terlihat jelas (NFR-6 aksesibilitas) */
 :focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid #004F64;
   outline-offset: 2px;
 }
+
+/* ── Kelas lama (dipakai halaman fisioterapis) ─────────────────────────── */
 
 /* Tombol utama ≥ 64px tinggi */
 .btn-utama {
@@ -32,4 +57,69 @@ body {
 /* Tombol sekunder dan nyeri ≥ 44×44px */
 .btn-sekunder {
   @apply min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg;
+}
+
+/* ── Komponen UI pasien (rc-*) ─────────────────────────────────────────── */
+
+.rc-wrap {
+  @apply mx-auto w-full max-w-lg px-5 py-6 flex flex-col gap-5;
+}
+
+.rc-card {
+  @apply bg-white rounded-2xl border border-slate-200 shadow-sm p-5;
+}
+
+.rc-judul {
+  @apply text-2xl font-semibold tracking-tight text-brand-700;
+}
+
+.rc-sub {
+  @apply text-base text-muted;
+}
+
+/* Tombol utama ≥ 64px */
+.rc-btn {
+  @apply inline-flex items-center justify-center gap-2 min-h-[64px] w-full px-6 py-3 rounded-2xl text-lg font-semibold
+         bg-brand-700 text-white shadow-sm transition-colors
+         hover:bg-brand-800 active:bg-brand-800
+         disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed disabled:shadow-none;
+}
+
+/* Tombol sekunder ≥ 48px */
+.rc-btn-2 {
+  @apply inline-flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] px-5 py-2 rounded-xl text-base font-semibold
+         bg-white text-brand-700 border-2 border-brand-700 transition-colors
+         hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+/* Tombol Google / tamu: putih, bingkai hitam 30%, ≥ 44px */
+.rc-btn-google {
+  @apply inline-flex items-center justify-center gap-2 min-h-[44px] w-full px-4 py-1.5 rounded-sm text-sm font-medium
+         bg-white text-ink border border-black/30 transition-colors
+         hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white;
+}
+
+.rc-btn-bahaya {
+  @apply inline-flex items-center justify-center gap-2 min-h-[48px] min-w-[48px] px-5 py-2 rounded-xl text-base font-semibold
+         bg-white text-red-700 border-2 border-red-300 transition-colors hover:bg-red-50;
+}
+
+.rc-tautan {
+  @apply inline-flex items-center min-h-[44px] px-1 text-base font-medium text-brand-700 underline underline-offset-4 hover:text-brand-800;
+}
+
+.rc-alert {
+  @apply rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-base text-red-800;
+}
+
+.rc-info {
+  @apply rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-900;
+}
+
+.rc-ok {
+  @apply rounded-xl border border-brand-600 bg-brand-50 px-4 py-3 text-base text-brand-700;
+}
+
+.rc-chip {
+  @apply inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-base font-semibold text-brand-700 border border-brand-600;
 }

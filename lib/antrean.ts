@@ -168,18 +168,15 @@ function buatPenyimpananLokal(): PenyimpananKV {
 // Lazy import supabase — singleton is created at browser runtime, not at module load
 let _singleton: ReturnType<typeof buatAntrean> | null = null;
 
-// Supabase uses "publishable key" (newer projects) instead of the older "anon key" naming
-function supabaseKey(): string {
-  return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
-}
-
+// Klien Supabase dibagi dengan seluruh aplikasi: sesi login Google, PKCE, dan rotasi
+// refresh token tidak boleh dipegang beberapa klien. Impor dinamis supaya tes (buatAntrean)
+// tidak memuat Supabase.
 function dapatSingleton() {
   if (_singleton) return _singleton;
   const klienBrowser: KlienKirim = {
     async upsertSesi(baris) {
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', supabaseKey());
+        const { supabase: sb } = await import('./supabase.ts');
         const { error, status } = await sb
           .from('sesi')
           .upsert(baris, { onConflict: 'id', ignoreDuplicates: true });
@@ -191,8 +188,7 @@ function dapatSingleton() {
     },
     async laporNyeri(id, n) {
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', supabaseKey());
+        const { supabase: sb } = await import('./supabase.ts');
         const { data, error, status } = await sb.rpc('lapor_nyeri', {
           p_sesi_id: id,
           p_nilai: n,

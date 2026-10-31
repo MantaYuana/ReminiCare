@@ -150,6 +150,9 @@ create policy eskalasi_tinjau on public.eskalasi for update to authenticated
 -- eskalasi: tanpa kebijakan sisip (hanya trigger security definer)
 
 -- GRANT eksplisit (tabel baru tidak otomatis terbuka ke Data API). anon + service_role: tanpa GRANT.
+-- Cabut default privileges Supabase agar pembatasan GRANT kolom ke anon dan authenticated berlaku efektif
+revoke all on public.profil, public.pasien, public.sesi, public.eskalasi, public.v_prioritas from anon, authenticated;
+alter default privileges in schema public revoke all on tables from anon, authenticated;
 grant select, update (nama) on public.profil to authenticated;
 grant select, delete on public.pasien to authenticated;
 -- [default spec] GRANT kolom membatasi apa yang bisa diubah langsung oleh klien. Kolom kode, user_id, persetujuan, dan is_sintetis hanya bisa diubah lewat RPC.

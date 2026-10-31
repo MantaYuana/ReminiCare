@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { ResepSalinan } from '../lib/kinematik/mesin.ts';
 import { buatMesin, agregatSesi } from '../lib/kinematik/mesin.ts';
 import type { Sisi, EventMesin, Baseline, KonfigSesi, FrameMentah } from '../lib/kinematik/tipe.ts';
-import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI, ISTIRAHAT_MS } from '../lib/kinematik/tipe.ts';
+import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI, ISTIRAHAT_MS, GATING } from '../lib/kinematik/tipe.ts';
 import { buatPemantau, kalibrasi } from '../lib/kinematik/fitur.ts';
 import { mulaiPose } from '../lib/pose.ts';
 import { mulaiLayar, langkah, buatJuruSuara } from '../lib/sesi-state.ts';
@@ -42,7 +42,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
   const [layar, setLayar]           = useState<Layar>(() => mulaiLayar(suara.jalur !== null));
   const [fps, setFps]               = useState(0);
   const [skor, setSkor]             = useState(0);
-  const [gating, setGating]         = useState(false);
+  const [gating, setGating]         = useState(true);   // belum ada frame dinilai = belum siap
+  const [percobaanKamera, setPercobaanKamera] = useState(0);
   const [pesanGalat, setPesanGalat] = useState<string | null>(null);
   const [nyeriSudahDipilih, setNyeriSudahDipilih] = useState(false);
   const [pesanSimpan, setPesanSimpan] = useState<string | undefined>();
@@ -58,7 +59,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
   const baselineRef = useRef<Baseline | null>(null);
   const kalibFramesRef = useRef<FrameMentah[]>([]);
   const frameDtsRef = useRef<number[]>([]);
+  const dtSesiRef = useRef<number[]>([]);        // semua selisih frame saat gerakan → fps_median sesi
   const lastFrameTimeRef = useRef<number | null>(null);
+  const sudahSimpanRef = useRef(false);
 
   const layarRef = useRef(layar);
   layarRef.current = layar;
@@ -96,6 +99,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
       if (dt > 0) {
         frameDtsRef.current.push(dt);
         if (frameDtsRef.current.length > 30) frameDtsRef.current.shift();
+        if (layarRef.current.nama === 'gerakan') dtSesiRef.current.push(dt);
       }
     }
     lastFrameTimeRef.current = f.t;
@@ -115,8 +119,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
       if (!pemantauRef.current) {
         pemantauRef.current = buatPemantau(resepRef.current.sisi);
       }
-      const { gating: g, skor: sk } = pemantauRef.current.dorong(f);
-      setGating(g);
+      const { gating: g, skor: sk, diDalam: dd } = pemantauRef.current.dorong(f);
+      // gating baru aktif setelah 1 dtk buruk; frame buruk saat ini juga menahan tombol Siap (F05)
+      setGating(g || !dd || sk < GATING.masuk);
       setSkor(sk);
     } else if (l.nama === 'kalibrasi') {
       kalibFramesRef.current.push(f);
@@ -181,7 +186,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
     return () => {
       dibatalkan = true;
     };
-  }, [layar.nama, kirimAksi, onFrame]);
+  }, [layar.nama, kirimAksi, onFrame, percobaanKamera]);
 
   // Cleanup saat unmount
   useEffect(() => {
@@ -221,7 +226,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
   // ── Kalibrasi selesai ───────────────────────────────────────────────────
 
   function handleKalibrasiSelesai() {
-    const frames = [...kalibFramesRef.current];
+    const frames = kalibFramesRef.current;
+    kalibFramesRef.current = [];                 // percobaan ulang mulai dari frame baru
     const res = kalibrasi(frames, resep.sisi);
     if (res.ok) {
       baselineRef.current = res.baseline;
@@ -238,6 +244,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
   useEffect(() => {
     if (layar.nama !== 'ringkasan') return;
     if (!baselineRef.current) return;
+    // sekali per sesi: re-run effect (resep/props baru) tidak boleh mengantrekan sesi kedua
+    if (sudahSimpanRef.current) return;
+    sudahSimpanRef.current = true;
 
     const sisa = mesinRef.current?.akhiri() ?? [];
     for (const e of sisa) tangani(e);
@@ -245,8 +254,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
     const hasilSemua = mesinRef.current?.hasil() ?? [];
 
     const hitungFpsMed = () => {
-      if (frameDtsRef.current.length === 0) return 30;
-      const s = [...frameDtsRef.current].sort((a, b) => a - b);
+      const dts = dtSesiRef.current.length > 0 ? dtSesiRef.current : frameDtsRef.current;
+      if (dts.length === 0) return 30;
+      const s = [...dts].sort((a, b) => a - b);
       const mid = Math.floor(s.length / 2);
       const medianDt = s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
       return medianDt > 0 ? Math.round(1000 / medianDt) : 30;
@@ -271,7 +281,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
     });
 
     const repTotal = barisSesi.rep_total;
-    const repBenarHitung = repTotal - barisSesi.rep_terkompensasi;
+    const repTerukur = barisSesi.rep_terukur;
+    // F10: % benar = 100 − % terkompensasi, basis repetisi terukur (sama dengan dasbor)
+    const repBenarHitung = repTerukur - barisSesi.rep_terkompensasi;
     setRepBenar(repBenarHitung);
     sesiIdRef.current = barisSesi.id;
 
@@ -287,7 +299,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
     if (pasienId && layar.totalRep > 0) {
       tambahRiwayat(pasienId, {
         mulai: barisSesi.mulai,
-        pct_benar: repTotal > 0 ? Math.round((repBenarHitung / repTotal) * 100) : null,
+        pct_benar: repTerukur > 0 ? Math.round((repBenarHitung / repTerukur) * 100) : null,
         rep_total: repTotal,
         rep_benar: repBenarHitung,
       });
@@ -358,7 +370,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
               </div>
               <div className="flex gap-3 w-full max-w-sm">
                 <button
-                  onClick={() => { setPesanGalat(null); }}
+                  onClick={() => { setPesanGalat(null); setPercobaanKamera(n => n + 1); }}
                   className="btn-sekunder flex-1 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   Coba lagi
@@ -388,7 +400,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
 
       {/* Layar kalibrasi */}
       {layar.nama === 'kalibrasi' && (
-        <LayarKalibrasi onSelesai={handleKalibrasiSelesai} />
+        // key per percobaan: kalibrasi gagal me-remount layar sehingga hitung mundur 5 dtk dimulai ulang
+        <LayarKalibrasi key={layar.gagalKalibrasi} onSelesai={handleKalibrasiSelesai} />
       )}
 
       {/* Layar gerakan */}

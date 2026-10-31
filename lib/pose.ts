@@ -22,38 +22,40 @@ export async function mulaiPose(
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: 640, height: 480, facingMode: 'user' },
   });
-  video.srcObject = stream;
-  await new Promise<void>(res => { video.onloadedmetadata = () => res(); });
-  await video.play();
+  const hentikanStream = () => {
+    stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  };
 
-  // 2. Load MediaPipe
-  const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
-
-  const vision = await FilesetResolver.forVisionTasks(`${BASE_URL}/wasm`);
-
-  let landmarker: Awaited<ReturnType<typeof PoseLandmarker.createFromOptions>> | null = null;
+  // 2. Load MediaPipe — bila gagal (mis. luring, aset tidak terunduh) kamera wajib dimatikan lagi
+  type Landmarker = Awaited<ReturnType<typeof import('@mediapipe/tasks-vision').PoseLandmarker.createFromOptions>>;
+  let buatLandmarker: (d: 'GPU' | 'CPU') => Promise<Landmarker>;
+  let landmarker: Landmarker | null = null;
   let delegate: 'GPU' | 'CPU' = 'GPU';
 
   try {
-    landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`,
-        delegate: 'GPU',
-      },
+    video.srcObject = stream;
+    await new Promise<void>(res => { video.onloadedmetadata = () => res(); });
+    await video.play();
+
+    const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+    const vision = await FilesetResolver.forVisionTasks(`${BASE_URL}/wasm`);
+    buatLandmarker = (d) => PoseLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`, delegate: d },
       runningMode: 'VIDEO',
       numPoses: 1,
     });
-  } catch {
-    // Fallback ke CPU bila GPU tidak tersedia
-    delegate = 'CPU';
-    landmarker = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`,
-        delegate: 'CPU',
-      },
-      runningMode: 'VIDEO',
-      numPoses: 1,
-    });
+
+    try {
+      landmarker = await buatLandmarker('GPU');
+    } catch {
+      // Fallback ke CPU bila GPU tidak tersedia
+      delegate = 'CPU';
+      landmarker = await buatLandmarker('CPU');
+    }
+  } catch (err) {
+    hentikanStream();
+    throw err;
   }
 
   let berjalan = true;
@@ -62,10 +64,10 @@ export async function mulaiPose(
   let isProcessing = false;
 
   async function loop(timestamp: number) {
-    if (!berjalan || !landmarker) return;
+    if (!berjalan) return;
     animId = requestAnimationFrame(loop);
 
-    if (video.currentTime === lastTime || isProcessing) return;
+    if (!landmarker || video.currentTime === lastTime || isProcessing) return;
     lastTime = video.currentTime;
     isProcessing = true;
 
@@ -75,23 +77,18 @@ export async function mulaiPose(
         result = landmarker.detectForVideo(video, timestamp) as LandmarkResult;
       } catch (err) {
         if (delegate === 'GPU') {
-          try {
-            landmarker.close();
-          } catch {}
+          // lepas landmarker lama dulu, supaya berhenti() tidak menutupnya dua kali
+          const lama = landmarker;
+          landmarker = null;
+          try { lama?.close(); } catch {}
           delegate = 'CPU';
-          landmarker = await PoseLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`,
-              delegate: 'CPU',
-            },
-            runningMode: 'VIDEO',
-            numPoses: 1,
-          });
+          const baru = await buatLandmarker('CPU');
           if (!berjalan) {
-            landmarker.close();
+            baru.close();
             return;
           }
-          result = landmarker.detectForVideo(video, timestamp) as LandmarkResult;
+          landmarker = baru;
+          result = baru.detectForVideo(video, timestamp) as LandmarkResult;
         } else {
           throw err;
         }
@@ -129,8 +126,9 @@ export async function mulaiPose(
     berhenti() {
       berjalan = false;
       cancelAnimationFrame(animId);
-      landmarker?.close();
-      stream.getTracks().forEach(t => t.stop());
+      hentikanStream();                          // kamera mati dulu, apa pun hasil close()
+      try { landmarker?.close(); } catch {}
+      landmarker = null;
     },
   };
 }

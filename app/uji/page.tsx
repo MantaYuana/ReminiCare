@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import type { FrameMentah, Baseline, EventMesin, Sisi, Gerakan } from '../../lib/kinematik/tipe.ts';
+import { useState, useRef, useEffect, memo } from 'react';
+import type { FrameMentah, Baseline, EventMesin, Sisi, Gerakan, HasilRepetisi } from '../../lib/kinematik/tipe.ts';
+import { KANDIDAT_CONDONG, SUARA_CONDONG } from '../../lib/kinematik/tipe.ts';
 import { buatMesin } from '../../lib/kinematik/mesin.ts';
 import { kalibrasi } from '../../lib/kinematik/fitur.ts';
 import { mulaiPose } from '../../lib/pose.ts';
@@ -61,7 +62,8 @@ export default function UjiPage() {
 
   const kalibFramesRef = useRef<FrameMentah[]>([]);
   const statisSampelRef = useRef<Extract<EventMesin, { jenis: 'sampel' }>[]>([]);
-  const latensiRef = useRef<number | null>(null);
+  // latensi per koreksi, dikunci tDeteksi supaya tercatat di baris repetisi pemiliknya
+  const latensiRef = useRef(new Map<number, number>());
   const frameTimesRef = useRef<number[]>([]);
 
   // Load saved rows on mount
@@ -158,27 +160,33 @@ export default function UjiPage() {
           }
         } else if (ev.jenis === 'koreksi') {
           suara.ucap(ev.kode, { prioritas: true }).then(() => {
-            latensiRef.current = performance.now() - ev.tDeteksi;
+            latensiRef.current.set(ev.tDeteksi, performance.now() - ev.tDeteksi);
           });
         } else if (ev.jenis === 'repetisi' && curStatus === 'set_aktif') {
-          const row = barisRep(metaRef.current, ev.hasil, {
-            waktuIso: new Date().toISOString(),
-            fps: curFps,
-            delegate: poseRef.current?.delegate ?? 'CPU',
-            jalurSuara: suara.jalur ?? 'webspeech',
-            latensiMs: latensiRef.current,
-          });
-          latensiRef.current = null;
-          setBaris(prev => {
-            const next = [...prev, row];
-            try {
-              localStorage.setItem('rc_uji', JSON.stringify(next));
-            } catch {}
-            return next;
-          });
+          tambahBarisRep(ev.hasil, curFps);
         }
       }
     }
+  }
+
+  function tambahBarisRep(hasil: HasilRepetisi, fpsSaatIni: number) {
+    const tDeteksi = hasil.koreksi?.tDeteksi;
+    const latensiMs = tDeteksi !== undefined ? latensiRef.current.get(tDeteksi) ?? null : null;
+    if (tDeteksi !== undefined) latensiRef.current.delete(tDeteksi);
+    const row = barisRep(metaRef.current, hasil, {
+      waktuIso: new Date().toISOString(),
+      fps: fpsSaatIni,
+      delegate: poseRef.current?.delegate ?? 'CPU',
+      jalurSuara: suara.jalur ?? 'webspeech',
+      latensiMs,
+    });
+    setBaris(prev => {
+      const next = [...prev, row];
+      try {
+        localStorage.setItem('rc_uji', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   }
 
   function handleMulaiKalibrasi() {
@@ -214,14 +222,14 @@ export default function UjiPage() {
         tolBahu: 'normal',
         mode: meta.mode,
         kalimat: 'sandaran',
-        kandidat: 'a',
-        suaraCondong: true,
+        kandidat: KANDIDAT_CONDONG,               // sama dengan sesi pasien dan kolom kandidat_aktif
+        suaraCondong: SUARA_CONDONG,
       },
       baselineRef.current,
     );
     m.mulaiGerakan(meta.gerakan);
     mesinRef.current = m;
-    latensiRef.current = null;
+    latensiRef.current.clear();
     setStatus('set_aktif');
     setPesan(`Set aktif: ${meta.subjek} - ${meta.gerakan} (${meta.label})`);
   }
@@ -230,22 +238,7 @@ export default function UjiPage() {
     if (status !== 'set_aktif' || !mesinRef.current) return;
     const sisa = mesinRef.current.akhiri();
     for (const ev of sisa) {
-      if (ev.jenis === 'repetisi') {
-        const row = barisRep(metaRef.current, ev.hasil, {
-          waktuIso: new Date().toISOString(),
-          fps,
-          delegate: poseRef.current?.delegate ?? 'CPU',
-          jalurSuara: suara.jalur ?? 'webspeech',
-          latensiMs: latensiRef.current,
-        });
-        setBaris(prev => {
-          const next = [...prev, row];
-          try {
-            localStorage.setItem('rc_uji', JSON.stringify(next));
-          } catch {}
-          return next;
-        });
-      }
+      if (ev.jenis === 'repetisi') tambahBarisRep(ev.hasil, fps);
     }
     setStatus('siap');
     setPesan('Set diakhiri.');
@@ -264,8 +257,8 @@ export default function UjiPage() {
         tolBahu: 'normal',
         mode: 'mati',
         kalimat: 'sandaran',
-        kandidat: 'a',
-        suaraCondong: true,
+        kandidat: KANDIDAT_CONDONG,
+        suaraCondong: SUARA_CONDONG,
       },
       baselineRef.current,
     );
@@ -302,7 +295,7 @@ export default function UjiPage() {
     a.href = url;
     a.download = namaFile(meta.subjek, meta.posisi, new Date());
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   function handleHapusBaris() {
@@ -552,6 +545,15 @@ export default function UjiPage() {
       {/* Tabel Data Rekaman */}
       <div className="border rounded p-4 bg-white space-y-2">
         <h2 className="font-semibold text-lg">Tabel Data Rekaman ({baris.length} baris tersimpan)</h2>
+        <TabelBaris baris={baris} />
+      </div>
+    </div>
+  );
+}
+
+// memo: halaman render ulang ±30 Hz karena metrik live; tabel hanya berubah saat baris bertambah
+const TabelBaris = memo(function TabelBaris({ baris }: { baris: Record<string, string | number>[] }) {
+  return (
         <div className="overflow-x-auto max-h-96">
           <table className="min-w-full text-xs text-left border-collapse">
             <thead className="bg-gray-100 sticky top-0">
@@ -592,7 +594,5 @@ export default function UjiPage() {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
   );
-}
+});

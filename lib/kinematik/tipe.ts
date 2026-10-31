@@ -116,7 +116,7 @@ export const AMBANG_AWAL: Record<Gerakan, Ambang> = {
   jangkau_samping: { tw: 0.06, td: 0.04, tr: 0.04, tz: 0.15, tTheta: 8,  tel: 0.25 },
 };
 
-export const AMBANG_VERSI = 'S1-0600';
+export const AMBANG_VERSI = 'awal';            // jadi 'S1-0600' hanya bila AMBANG_AWAL disetel dari CSV S1 asli
 
 export const KALI_TOLERANSI: Record<Toleransi, number | null> = {
   ketat:   0.75,
@@ -134,5 +134,5 @@ export const KOREKSI       = { debounceMs: 300, samaMs: 4000, antarMs: 1500 };
 export const KALIB         = { durasiMs: 5000, sdMaks: 0.02, jendelaMs: 1000, minFraksi: 0.5, maksGagal: 3 };
 export const BAGUS_BERUNTUN = 3;
 export const ISTIRAHAT_MS  = 20000;
-export const KANDIDAT_CONDONG: Kandidat = 'c';
+export const KANDIDAT_CONDONG: Kandidat = 'a';   // bawaan sampai keputusan 07.30 dari data S2 + S3 asli
 export const SUARA_CONDONG = true;

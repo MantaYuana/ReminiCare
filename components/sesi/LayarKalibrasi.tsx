@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface PropsLayarKalibrasi {
   onSelesai(ok?: boolean): void;
@@ -10,9 +10,13 @@ const HITUNG_MUNDUR = 5; // detik
 
 export default function LayarKalibrasi({ onSelesai }: PropsLayarKalibrasi) {
   const [detik, setDetik] = useState(HITUNG_MUNDUR);
+  const sudahSelesai = useRef(false);
 
   useEffect(() => {
     if (detik <= 0) {
+      // onSelesai berganti identitas tiap render induk; panggil sekali per hitung mundur
+      if (sudahSelesai.current) return;
+      sudahSelesai.current = true;
       onSelesai(true);
       return;
     }

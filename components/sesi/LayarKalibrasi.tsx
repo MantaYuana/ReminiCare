@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 interface PropsLayarKalibrasi {
-  onSelesai(ok: boolean): void;
+  onSelesai(ok?: boolean): void;
 }
 
 const HITUNG_MUNDUR = 5; // detik
@@ -13,7 +13,6 @@ export default function LayarKalibrasi({ onSelesai }: PropsLayarKalibrasi) {
 
   useEffect(() => {
     if (detik <= 0) {
-      // Simulasi kalibrasi selalu berhasil saat mesin tiruan aktif
       onSelesai(true);
       return;
     }

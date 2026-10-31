@@ -34,8 +34,8 @@ export function keSampel(f: FrameMentah, sisi: Sisi, sebelum: Sampel | null): Sa
     return { t, p, S3: kosong3, H3: kosong3, diDalam: false, skor: 0, visPanggul: 0, panggulN: kosong };
   }
 
-  const ki = sisi === 'kiri' ? 'kiri' : 'kanan';
-  const ka = sisi === 'kiri' ? 'kanan' : 'kiri';
+
+
 
   const p: Record<Kunci, P2> = {
     telingaT:     { x: lm[IDX.telinga[sisi]].x * W,     y: lm[IDX.telinga[sisi]].y * H },
@@ -117,7 +117,7 @@ export function buatResampler(hz = HZ): { dorong(s: Sampel): Sampel[] } {
   return {
     dorong(cur: Sampel): Sampel[] {
       const hasil: Sampel[] = [];
-      if (prev === null) { prev = cur; t0 = cur.t; k = 0; return hasil; }
+      if (prev === null || cur.t - prev.t > 500) { prev = cur; t0 = cur.t; k = 0; return hasil; }
 
       // Generate grid points that fall in (prev.t, cur.t]
       while (true) {

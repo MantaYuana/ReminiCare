@@ -3,10 +3,11 @@
 interface PropsLayarPanduan {
   bantuan: boolean;
   onSiap(): void;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
+  gating?: boolean;
 }
 
-export default function LayarPanduan({ bantuan, onSiap, videoRef }: PropsLayarPanduan) {
+export default function LayarPanduan({ bantuan, onSiap, videoRef, gating = false }: PropsLayarPanduan) {
   return (
     <div className="flex flex-col items-center gap-6 p-6 max-w-lg mx-auto">
       <h1 className="text-2xl font-bold">Panduan posisi</h1>
@@ -18,17 +19,19 @@ export default function LayarPanduan({ bantuan, onSiap, videoRef }: PropsLayarPa
       )}
 
       {/* Pratinjau kamera */}
-      <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover"
-          style={{ transform: 'scaleX(-1)' }}
-          aria-label="Pratinjau kamera"
-        />
-      </div>
+      {videoRef && (
+        <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+            style={{ transform: 'scaleX(-1)' }}
+            aria-label="Pratinjau kamera"
+          />
+        </div>
+      )}
 
       {/* Petunjuk posisi */}
       <ul className="w-full space-y-2 text-base list-disc list-inside">
@@ -41,9 +44,10 @@ export default function LayarPanduan({ bantuan, onSiap, videoRef }: PropsLayarPa
 
       <button
         onClick={onSiap}
-        className="btn-utama w-full bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+        disabled={gating}
+        className="btn-utama w-full bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Siap
+        {gating ? 'Posisikan tubuh ke dalam bingkai...' : 'Siap'}
       </button>
     </div>
   );

@@ -27,11 +27,11 @@ export async function mulaiPose(
   await video.play();
 
   // 2. Load MediaPipe
-  const { PoseLandmarker, FilesetResolver, RunningMode } = await import('@mediapipe/tasks-vision');
+  const { PoseLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
 
   const vision = await FilesetResolver.forVisionTasks(`${BASE_URL}/wasm`);
 
-  let landmarker: InstanceType<typeof PoseLandmarker> | null = null;
+  let landmarker: Awaited<ReturnType<typeof PoseLandmarker.createFromOptions>> | null = null;
   let delegate: 'GPU' | 'CPU' = 'GPU';
 
   try {
@@ -40,7 +40,7 @@ export async function mulaiPose(
         modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`,
         delegate: 'GPU',
       },
-      runningMode: 'VIDEO' as unknown as typeof RunningMode.VIDEO,
+      runningMode: 'VIDEO',
       numPoses: 1,
     });
   } catch {
@@ -51,41 +51,77 @@ export async function mulaiPose(
         modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`,
         delegate: 'CPU',
       },
-      runningMode: 'VIDEO' as unknown as typeof RunningMode.VIDEO,
+      runningMode: 'VIDEO',
       numPoses: 1,
     });
   }
 
   let berjalan = true;
   let animId = 0;
+  let lastTime = -1;
+  let isProcessing = false;
 
-  function loop(timestamp: number) {
+  async function loop(timestamp: number) {
     if (!berjalan || !landmarker) return;
-
-    const result = landmarker.detectForVideo(video, timestamp) as LandmarkResult;
-    const lm = result.landmarks?.[0] ?? null;
-    const world = result.worldLandmarks?.[0] ?? null;
-
-    const frame: FrameMentah = {
-      t: timestamp,
-      W: video.videoWidth,
-      H: video.videoHeight,
-      lm: lm
-        ? lm.map(p => ({ x: p.x, y: p.y, visibility: p.visibility }))
-        : null,
-      world: world
-        ? world.map(p => ({ x: p.x, y: p.y, z: p.z }))
-        : null,
-    };
-
-    onFrame(frame);
     animId = requestAnimationFrame(loop);
+
+    if (video.currentTime === lastTime || isProcessing) return;
+    lastTime = video.currentTime;
+    isProcessing = true;
+
+    try {
+      let result: LandmarkResult;
+      try {
+        result = landmarker.detectForVideo(video, timestamp) as LandmarkResult;
+      } catch (err) {
+        if (delegate === 'GPU') {
+          try {
+            landmarker.close();
+          } catch {}
+          delegate = 'CPU';
+          landmarker = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: `${BASE_URL}/pose_landmarker_lite.task`,
+              delegate: 'CPU',
+            },
+            runningMode: 'VIDEO',
+            numPoses: 1,
+          });
+          result = landmarker.detectForVideo(video, timestamp) as LandmarkResult;
+        } else {
+          throw err;
+        }
+      }
+
+      const lm = result.landmarks?.[0] ?? null;
+      const world = result.worldLandmarks?.[0] ?? null;
+
+      const frame: FrameMentah = {
+        t: timestamp,
+        W: video.videoWidth,
+        H: video.videoHeight,
+        lm: lm
+          ? lm.map(p => ({ x: p.x, y: p.y, visibility: p.visibility }))
+          : null,
+        world: world
+          ? world.map(p => ({ x: p.x, y: p.y, z: p.z }))
+          : null,
+      };
+
+      onFrame(frame);
+    } catch (e) {
+      console.error('Error during pose detection:', e);
+    } finally {
+      isProcessing = false;
+    }
   }
 
   animId = requestAnimationFrame(loop);
 
   return {
-    delegate,
+    get delegate() {
+      return delegate;
+    },
     berhenti() {
       berjalan = false;
       cancelAnimationFrame(animId);

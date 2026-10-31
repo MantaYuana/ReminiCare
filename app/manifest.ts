@@ -24,8 +24,7 @@ export default function manifest(): MetadataRoute.Manifest {
         src: '/icons/icon-maskable-512.png',
         sizes: '512x512',
         type: 'image/png',
-        // @ts-expect-error – 'maskable' valid per W3C spec, belum ada di tipe Next.js
-        purpose: 'maskable',
+                purpose: 'maskable',
       },
     ],
   }

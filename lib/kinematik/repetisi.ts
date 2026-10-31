@@ -92,11 +92,21 @@ export function jumlahPuncak(v: number[], vPuncak: number): number {
   const threshold = PUNCAK.fraksi * vPuncak;
   const dt = 1000 / HZ;
   let count = 0;
-  let lastPeak = -Infinity;
+  let lastPeakTime = -Infinity;
+  let lastPeakVal = -Infinity;
   for (let i = 1; i < v.length - 1; i++) {
     if (v[i] > threshold && v[i] >= v[i - 1] && v[i] >= v[i + 1]) {
       const t = i * dt;
-      if (t - lastPeak >= PUNCAK.jarakMs) { count++; lastPeak = t; }
+      if (t - lastPeakTime < PUNCAK.jarakMs) {
+        if (v[i] > lastPeakVal) {
+          lastPeakTime = t;
+          lastPeakVal = v[i];
+        }
+      } else {
+        count++;
+        lastPeakTime = t;
+        lastPeakVal = v[i];
+      }
     }
   }
   return count;
@@ -141,7 +151,7 @@ export function nilaiRepetisi(
   const fase = seg.slice(on10, off10 + 1);
 
   const fraksiTergating = fase.length > 0 ? fase.filter(s => s.tergating).length / fase.length : 1;
-  const terukur = fraksiTergating <= TAK_TERUKUR;
+  const terukur = vP > 0 && fraksiTergating <= TAK_TERUKUR;
 
   const bersih = fase.filter(s => !s.tergating);
   const n = bersih.length;
@@ -184,12 +194,12 @@ export function nilaiRepetisi(
     dTheta3d: bersih.length > 0 ? Math.max(...bersih.map(s => s.fitur.dTheta3d)) : 0,
   };
 
-  const waktuGerak10 = r10 ? (seg[off10].t - seg[on10].t) / 1000 : null;
+  const waktuGerak10 = terukur && r10 ? (seg[off10].t - seg[on10].t) / 1000 : null;
   const [on5, off5]  = r5 ?? [0, seg.length - 1];
-  const waktuGerak5  = r5 ? (seg[off5].t - seg[on5].t) / 1000 : null;
+  const waktuGerak5  = terukur && r5 ? (seg[off5].t - seg[on5].t) / 1000 : null;
 
-  const vPuncakVal = vP > 0 ? vP : null;
-  const nPuncak = vPuncakVal !== null ? jumlahPuncak(v.slice(on10, off10 + 1), vP) : null;
+  const vPuncakVal = terukur && vP > 0 ? vP : null;
+  const nPuncak = terukur && vPuncakVal !== null ? jumlahPuncak(v.slice(on10, off10 + 1), vP) : null;
 
   const vpArr = fase.map(s => s.visPanggul);
   const visPanggulMin = vpArr.length > 0 ? Math.min(...vpArr) : 0;

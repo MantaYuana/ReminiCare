@@ -3,12 +3,12 @@
 
 import {
   type FrameMentah, type Gerakan, type Baseline, type EventMesin,
-  type HasilRepetisi, type KonfigSesi, type Sampel, type Sisi, type Toleransi,
-  type ModeKoreksi, type KalimatCondong, type Kandidat,
+  type HasilRepetisi, type KonfigSesi, type Sampel, type Toleransi,
+  type ModeKoreksi, type KalimatCondong, type Kandidat, type KodeKoreksi,
   REP, AMBANG_VERSI, KANDIDAT_CONDONG, SUARA_CONDONG, ISTIRAHAT_MS,
-  AMBANG_AWAL,
+  FC_HZ, HZ,
 } from './tipe.ts';
-import { keSampel, buatResampler, buatFilterSampel, koefButterworth, FC_HZ, HZ } from './sinyal.ts';
+import { keSampel, buatResampler, buatFilterSampel, koefButterworth } from './sinyal.ts';
 import { hitungFitur, ambangEfektif, hitungPenanda, buatGating } from './fitur.ts';
 import { langkahRep, nilaiRepetisi, buatKoreksi, buatPenghitungBagus } from './repetisi.ts';
 import type { KeadaanRep, SampelRep } from './repetisi.ts';
@@ -69,14 +69,16 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
   const filter    = buatFilterSampel(koef);
   const gating    = buatGating();
   const koreksi   = buatKoreksi(cfg);
-  const penghitung = buatPenghitungBagus();
+  let penghitung  = buatPenghitungBagus();
+  let gatingSebelum = false;
+  let korBerjalan: { kode: KodeKoreksi; tDeteksi: number } | null = null;
 
-  let gerakanAktif: Gerakan = cfg.sisi === 'kiri' ? 'jangkau_depan' : 'jangkau_depan';
+  let gerakanAktif: Gerakan = 'jangkau_depan';
   let keAdaan: KeadaanRep = { status: 'DIAM', tMulai: null };
   let hitungan = 0;
   let sebelum: Sampel | null = null;
   const buffer: SampelRep[] = [];
-  const tertunda: { tMulai: number; tSelesai: number; sah: boolean }[] = [];
+  const tertunda: { tMulai: number; tSelesai: number; sah: boolean; koreksi: { kode: KodeKoreksi; tDeteksi: number } | null }[] = [];
   const semuaHasil: HasilRepetisi[] = [];
 
   function ambangSekarang() {
@@ -92,8 +94,9 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
       const seg = buffer.filter(s => s.t >= p.tMulai - REP.padMs && s.t <= p.tSelesai + REP.padMs);
       const nilai = nilaiRepetisi(seg, p.tMulai, p.tSelesai, cfg.durasiPersen);
       hitungan++;
-      const bagus = penghitung.tambah(nilai.terukur, nilai.terkompensasi);
-      const hasil: HasilRepetisi = { gerakan: gerakanAktif, ke: hitungan, koreksi: null, ...nilai };
+      const bagusMentah = penghitung.tambah(nilai.terukur, nilai.terkompensasi);
+      const bagus = cfg.mode === 'penuh' && bagusMentah;
+      const hasil: HasilRepetisi = { gerakan: gerakanAktif, ke: hitungan, koreksi: p.koreksi, ...nilai };
       semuaHasil.push(hasil);
       events.push({ jenis: 'repetisi', hasil, hitungan, bagus });
     }
@@ -111,6 +114,9 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
       keAdaan = { status: 'DIAM', tMulai: null };
       hitungan = 0;
       koreksi.mulaiRep();
+      penghitung = buatPenghitungBagus();
+      korBerjalan = null;
+      gatingSebelum = false;
       buffer.length = 0;
       tertunda.length = 0;
     },
@@ -120,6 +126,8 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
       const sampelBaru = resampler.dorong(keSampel(f, cfg.sisi, sebelum));
       if (sampelBaru.length > 0) sebelum = sampelBaru[sampelBaru.length - 1];
 
+      let eventSampel: EventMesin | null = null;
+
       for (const s of sampelBaru) {
         const sf = filter(s);
         const fitur = hitungFitur(sf, b, cfg.sisi);
@@ -128,20 +136,31 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
         const { aktif: gatingAktif } = gating.dorong(sf.t, sf.diDalam, sf.skor);
         const tergating = !sf.diDalam || gatingAktif;
 
+        if (gatingAktif !== gatingSebelum) {
+          gatingSebelum = gatingAktif;
+          events.push({ jenis: 'gating', aktif: gatingAktif, t: sf.t });
+        }
+
         const repSebelum = keAdaan.status;
         const { k: keBarU, selesai } = langkahRep(keAdaan, sf.t, fitur.dp);
-        if (repSebelum === 'DIAM' && keBarU.status === 'BERGERAK') koreksi.mulaiRep();
+        if (repSebelum === 'DIAM' && keBarU.status === 'BERGERAK') {
+          koreksi.mulaiRep();
+          korBerjalan = null;
+        }
         keAdaan = keBarU;
 
         const kor = koreksi.dorong(sf.t, keAdaan.status, tergating, penanda);
-        if (kor) events.push({ jenis: 'koreksi', sub: kor.sub, kode: kor.kode, tDeteksi: kor.tDeteksi });
+        if (kor) {
+          korBerjalan = { kode: kor.kode, tDeteksi: kor.tDeteksi };
+          events.push({ jenis: 'koreksi', sub: kor.sub, kode: kor.kode, tDeteksi: kor.tDeteksi });
+        }
 
         buffer.push({
           t: sf.t, pw: sf.p.pergelanganT, tergating,
           fitur, penanda, visPanggul: sf.visPanggul, panggulN: sf.panggulN,
         });
 
-        if (selesai) tertunda.push(selesai);
+        if (selesai) tertunda.push({ ...selesai, koreksi: korBerjalan });
         events.push(...prosesTertunda(sf.t));
 
         // Pangkas buffer
@@ -150,11 +169,13 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
           : keAdaan.tMulai ?? sf.t;
         pangkasBuffer(tMin);
 
-        events.push({
+        eventSampel = {
           jenis: 'sampel', t: sf.t, status: keAdaan.status,
           gating: gatingAktif, skor: sf.skor, diDalam: sf.diDalam, fitur, penanda,
-        });
+        };
       }
+
+      if (eventSampel) events.push(eventSampel);
       return events;
     },
 
@@ -205,8 +226,8 @@ export function agregatSesi(x: {
     const gs = sah.filter(r => r.gerakan === g);
     const gt = gs.filter(r => r.terukur);
     const perPenanda = {
-      batang: gt.length > 0 ? gt.reduce((s, r) => s + r.fraksi.batang, 0) / gt.length : 0,
-      bahu:   gt.length > 0 ? gt.reduce((s, r) => s + r.fraksi.bahu, 0) / gt.length : 0,
+      batang: gt.filter(r => r.kompensasi.batang).length,
+      bahu:   gt.filter(r => r.kompensasi.bahu).length,
     };
     perGerakan[g] = {
       rep_total:         gs.length,

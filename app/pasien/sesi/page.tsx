@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase, cekPeran } from '../../../lib/supabase';
 import { bacaResep } from '../../../lib/lokal';
@@ -11,7 +11,7 @@ import type { Sisi } from '../../../lib/kinematik/tipe';
 
 type ResepDenganSisi = ResepSalinan & { sisi: Sisi };
 
-export default function Page() {
+function KontenSesi() {
   const router       = useRouter();
   const params       = useSearchParams();
   const [resep, setResep]     = useState<ResepDenganSisi | null>(null);
@@ -142,5 +142,17 @@ export default function Page() {
       simpan={true}
       kembali={kembali}
     />
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={
+      <main className="flex items-center justify-center min-h-screen">
+        <p className="text-base text-gray-500">Memuat resep…</p>
+      </main>
+    }>
+      <KontenSesi />
+    </Suspense>
   );
 }

@@ -39,14 +39,14 @@ export function buatMesinTiruan(): {
           gating: false,
           skor: 0.8,
           diDalam: true,
-          fitur: { w: null, d: null, r: null, zb: null, el: null },
+          fitur: { w: null, d: null, r: null, zb: null, el: null } as any,
           penanda: {
             batang: null, bahu: null, vPuncak: null, nPuncak: null,
             koreksi: null,
             visPanggulMin: 0.9, visPanggulMed: 0.95,
             panggulMin: { x: 0.4, y: 0.7 },
             panggulMaks: { x: 0.6, y: 0.7 },
-          },
+          } as any,
         });
       }, INTERVAL_SAMPEL_MS));
 
@@ -59,7 +59,7 @@ export function buatMesinTiruan(): {
           jenis: 'repetisi',
           hitungan: _hitungan,
           bagus,
-          hasil: {
+          hasil: ({
             gerakan: 'jangkau_depan',
             bagus,
             tMulai: Date.now() - INTERVAL_REPETISI_MS,
@@ -71,7 +71,7 @@ export function buatMesinTiruan(): {
               panggulMin: { x: 0.4, y: 0.7 },
               panggulMaks: { x: 0.6, y: 0.7 },
             },
-          },
+          } as any),
         });
 
         // koreksi pada 1 dari tiap 3 repetisi (hitungan yang bukan kelipatan 3)

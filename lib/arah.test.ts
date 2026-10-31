@@ -1,6 +1,23 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalKode, ruteUntuk } from './arah.ts';
+import { kodeDariQR, normalKode, ruteUntuk } from './arah.ts';
+
+describe('kodeDariQR', () => {
+  it('mengambil kode dari tautan klaim', () => {
+    assert.equal(kodeDariQR('https://reminicare.app/k/3f9a12cb'), '3F9A12CB');
+    assert.equal(kodeDariQR('http://localhost:3000/k/3F9A12CB?x=1'), '3F9A12CB');
+  });
+
+  it('menerima kode polos', () => {
+    assert.equal(kodeDariQR(' 3F9A12CB '), '3F9A12CB');
+  });
+
+  it('menolak isi lain', () => {
+    assert.equal(kodeDariQR('https://contoh.com/halaman'), null);
+    assert.equal(kodeDariQR('https://contoh.com/k/xyz'), null);
+    assert.equal(kodeDariQR(''), null);
+  });
+});
 
 describe('normalKode', () => {
   it('membuang spasi dan membesarkan huruf', () => {

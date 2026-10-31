@@ -31,9 +31,9 @@ export default function LayarKalibrasi({ onSelesai }: PropsLayarKalibrasi) {
   }, [detik]);
 
   return (
-    <div className="rc-wrap pt-4! items-center text-center">
+    <div className="flex flex-col items-center gap-5 text-center">
       <div>
-        <h1 className="rc-judul">Diam sebentar</h1>
+        <h2 className="rc-judul">Diam sebentar</h2>
         <p className="rc-sub">Duduk tenang dan jangan bergerak sampai hitungan selesai.</p>
       </div>
 

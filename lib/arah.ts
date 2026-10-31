@@ -28,3 +28,10 @@ export function normalKode(s: string): string | null {
   const k = s.replace(/\s+/g, '').toUpperCase();
   return /^[0-9A-F]{8}$/.test(k) ? k : null;
 }
+
+/** Isi QR dari fisioterapis (tautan `.../k/KODE`) atau kode polos; null bila bukan kode klaim. */
+export function kodeDariQR(isi: string): string | null {
+  const t = isi.trim();
+  const dariTautan = /\/k\/([^/?#\s]+)\/?(?:[?#].*)?$/i.exec(t);
+  return normalKode(dariTautan ? dariTautan[1] : t);
+}

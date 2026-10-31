@@ -22,6 +22,9 @@ import LayarKalibrasi  from './sesi/LayarKalibrasi';
 import LayarGerakan    from './sesi/LayarGerakan';
 import LayarIstirahat  from './sesi/LayarIstirahat';
 import LayarRingkasan  from './sesi/LayarRingkasan';
+import DashboardShell   from './DashboardShell';
+import type { ItemNav } from './DashboardShell';
+import { IkonBeranda, IkonLatihan, IkonChat, IkonPengaturan, IkonKeluar } from './ikon';
 
 // ── Tipe props ────────────────────────────────────────────────────────────
 
@@ -324,10 +327,22 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   // ── Render ───────────────────────────────────────────────────────────────
 
   const kamera = layar.nama === 'panduan' || layar.nama === 'kalibrasi';
+  const menuAtas: ItemNav[] = [
+    { label: 'Beranda', ikon: <IkonBeranda />, href: kembali },
+    { label: 'Semua Latihan', ikon: <IkonLatihan />, nonaktif: true },
+    { label: 'Chat', ikon: <IkonChat />, nonaktif: true },
+  ];
   const tahap = layar.nama === 'panduan' ? 0 : layar.nama === 'kalibrasi' ? 1 : null;
 
   return (
-    <div className={`relative min-h-screen ${layar.nama === 'gerakan' ? 'bg-black' : 'bg-white'}`}>
+    <DashboardShell
+      judul="Sesi latihan"
+      atas={menuAtas}
+      bawah={tamu ? [] : [{ label: 'Settings', ikon: <IkonPengaturan />, nonaktif: true }]}
+      tombol={tamu ? { label: 'Kembali Ke Login', ikon: <IkonKeluar />, href: '/' } : undefined}
+      tanpaCari
+      penuh={layar.nama === 'gerakan'}
+    >
       {/* Penanda tahap (slot tetap supaya <video> di bawah tidak dipasang ulang) */}
       {tahap !== null ? <Langkah aktif={tahap} /> : <span hidden />}
 
@@ -339,7 +354,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             layar.nama === 'gerakan'
               ? 'fixed inset-0 z-0 h-full w-full'
               : kamera
-              ? 'mx-auto mt-4 aspect-video w-full max-w-lg px-5'
+              ? 'w-full'
               : 'pointer-events-none fixed -left-[9999px] -top-[9999px] h-[480px] w-[640px]'
           }
         >
@@ -348,7 +363,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             autoPlay
             playsInline
             muted
-            className={`h-full w-full object-cover ${layar.nama === 'gerakan' ? '' : 'rounded-2xl border border-slate-300 bg-slate-900'}`}
+            className={`w-full ${layar.nama === 'gerakan' ? 'h-full object-cover' : 'aspect-video max-h-[60vh] rounded-2xl border border-slate-300 bg-slate-900 object-contain'}`}
             style={{ transform: 'scaleX(-1)' }}
             aria-label="Kamera latihan"
           />
@@ -438,6 +453,6 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
           onSelesai={handleSelesai}
         />
       )}
-    </div>
+    </DashboardShell>
   );
 }

@@ -1,31 +1,45 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase, cekPeran, pesanGalat } from '../../lib/supabase';
 import { bacaResep, simpanResep, bacaRiwayat, hapus } from '../../lib/lokal';
-import { kirim, jumlahSesi } from '../../lib/antrean';
+import { jumlahSesi } from '../../lib/antrean';
+import { normalKode } from '../../lib/arah';
 import { suara } from '../../lib/suara';
+
+const KOLOM_RESEP =
+  'nama_panggilan, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong';
+
+type Keadaan = 'memuat' | 'terikat' | 'belum_ada_resep';
 
 export default function Page() {
   const router = useRouter();
-  const [nama, setNama]               = useState('');
+  const [keadaan, setKeadaan]             = useState<Keadaan>('memuat');
+  const [nama, setNama]                   = useState('');
   const [sesiMingguIni, setSesiMingguIni] = useState(0);
   const [sesiPerMinggu, setSesiPerMinggu] = useState(0);
   const [antreanCount, setAntreanCount]   = useState(0);
-  const [loading, setLoading]         = useState(true);
   const [konfirmHapus, setKonfirmHapus]   = useState(false);
-  const [pesanHapus, setPesanHapus]   = useState('');
-  const [galat, setGalat]             = useState('');
+  const [pesanHapus, setPesanHapus]       = useState('');
+  const [galat, setGalat]                 = useState('');
+  const [kode, setKode]                   = useState('');
+  const [galatKode, setGalatKode]         = useState('');
 
   useEffect(() => {
+    function hitungMingguIni(pasienId: string) {
+      const tujuhHariLalu = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      setSesiMingguIni(bacaRiwayat(pasienId).filter(r => new Date(r.mulai).getTime() > tujuhHariLalu).length);
+    }
+
     async function muat() {
       const peran = await cekPeran();
 
       if (peran.jenis === 'pasien') {
         const { data } = await supabase
           .from('pasien')
-          .select('nama_panggilan, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong')
+          .select(KOLOM_RESEP)
           .eq('id', peran.pasienId)
           .maybeSingle();
         if (data) {
@@ -44,29 +58,40 @@ export default function Page() {
             mode_koreksi: data.mode_koreksi,
             kalimat_condong: data.kalimat_condong,
           });
-          // Hitung sesi 7 hari dari riwayat lokal
-          const tujuhHariLalu = Date.now() - 7 * 24 * 60 * 60 * 1000;
-          const riwayat = bacaRiwayat(peran.pasienId);
-          setSesiMingguIni(riwayat.filter(r => new Date(r.mulai).getTime() > tujuhHariLalu).length);
+          hitungMingguIni(peran.pasienId);
+          setKeadaan('terikat');
+        } else {
+          // Baris pasien hilang (mis. fisioterapis mengatur ulang data contoh)
+          hapus('rc_resep');
+          setKeadaan('belum_ada_resep');
         }
       } else if (peran.jenis === 'luring') {
         const lokal = bacaResep();
-        if (lokal) {
+        if (!lokal) {
+          setGalat('Butuh internet sekali untuk memuat resep.');
+          setKeadaan('belum_ada_resep');
+        } else {
           setNama(lokal.nama_panggilan ?? '');
           setSesiPerMinggu(lokal.sesi_per_minggu ?? 3);
-          const tujuhHariLalu = Date.now() - 7 * 24 * 60 * 60 * 1000;
-          const riwayat = bacaRiwayat(lokal.pasien_id);
-          setSesiMingguIni(riwayat.filter(r => new Date(r.mulai).getTime() > tujuhHariLalu).length);
+          hitungMingguIni(lokal.pasien_id);
+          setKeadaan('terikat');
         }
+      } else if ((peran.jenis as string) === 'pasien_baru') {
+        // Peran pasien yang belum terikat ke resep (kontrak V9 dari lib/supabase.ts)
+        hapus('rc_resep');
+        setKeadaan('belum_ada_resep');
       } else {
         router.replace('/');
         return;
       }
 
       setAntreanCount(jumlahSesi());
-      setLoading(false);
     }
     muat();
+
+    // Antrean bisa selesai terkirim saat halaman terbuka
+    const id = setInterval(() => setAntreanCount(jumlahSesi()), 2000);
+    return () => clearInterval(id);
   }, [router]);
 
   async function handleHapus() {
@@ -77,51 +102,68 @@ export default function Page() {
     const { error } = await supabase.rpc('cabut_persetujuan');
     if (error) { setGalat(pesanGalat(error)); setKonfirmHapus(false); return; }
 
-    // Hapus semua data lokal
     hapus('rc_antrean');
     hapus('rc_gagal');
     hapus('rc_resep');
-    // Hapus semua kunci riwayat (iterasi localStorage)
     try {
-      const kunci = Object.keys(globalThis.localStorage ?? {}).filter(k => k.startsWith('rc_riwayat:'));
-      kunci.forEach(k => hapus(k));
+      Object.keys(globalThis.localStorage ?? {})
+        .filter(k => k.startsWith('rc_riwayat:'))
+        .forEach(k => hapus(k));
     } catch { /* abaikan */ }
 
     await supabase.auth.signOut();
-    router.replace('/?pesan=hapus');
+    router.replace('/?pesan=dihapus');
   }
 
-  if (loading) {
+  async function handleKeluar() {
+    await supabase.auth.signOut();
+    hapus('rc_resep');
+    router.replace('/');
+  }
+
+  function handleHubungkan(e: React.FormEvent) {
+    e.preventDefault();
+    const k = normalKode(kode);
+    if (!k) {
+      setGalatKode('Kode terdiri dari 8 huruf atau angka (0–9, A–F).');
+      return;
+    }
+    setGalatKode('');
+    router.push('/k/' + k);
+  }
+
+  const tombolKeluar = (
+    <div className="flex flex-col gap-1">
+      <button onClick={handleKeluar} disabled={antreanCount > 0} className="rc-btn-2 self-start">
+        Keluar
+      </button>
+      {antreanCount > 0 && (
+        <p className="text-sm text-muted" role="status">
+          Tunggu {antreanCount} sesi terkirim dulu, supaya tidak hilang atau terkirim atas nama akun lain.
+        </p>
+      )}
+    </div>
+  );
+
+  if (keadaan === 'memuat') {
     return (
-      <main className="flex items-center justify-center min-h-screen">
-        <p className="text-base text-gray-500">Memuat…</p>
+      <main className="rc-wrap min-h-screen items-center justify-center text-center">
+        <p className="rc-sub" role="status">Memuat…</p>
       </main>
     );
   }
 
   if (konfirmHapus) {
     return (
-      <main className="flex flex-col items-center justify-center gap-6 min-h-screen p-6 max-w-sm mx-auto">
-        <h1 className="text-xl font-bold text-center">Hapus semua data?</h1>
-        <p className="text-base text-gray-600 text-center">
-          Semua sesi latihan dihapus dan perangkat dilepas. Tidak bisa dibatalkan.
+      <main className="rc-wrap min-h-screen justify-center">
+        <h1 className="rc-judul">Hapus semua data?</h1>
+        <p className="rc-sub">
+          Semua sesi latihan dihapus dan akun Anda dilepas dari data pasien. Tidak bisa dibatalkan.
         </p>
-        {pesanHapus && (
-          <div role="alert" className="w-full bg-red-50 border border-red-300 rounded-xl p-3 text-base">
-            {pesanHapus}
-          </div>
-        )}
-        <div className="flex gap-3 w-full">
-          <button
-            onClick={handleHapus}
-            className="btn-sekunder flex-1 bg-red-600 text-white rounded-xl hover:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-400"
-          >
-            Ya, hapus
-          </button>
-          <button
-            onClick={() => { setKonfirmHapus(false); setPesanHapus(''); }}
-            className="btn-sekunder flex-1 bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-          >
+        {pesanHapus && <div role="alert" className="rc-alert">{pesanHapus}</div>}
+        <div className="flex gap-3">
+          <button onClick={handleHapus} className="rc-btn-bahaya flex-1">Ya, hapus</button>
+          <button onClick={() => { setKonfirmHapus(false); setPesanHapus(''); }} className="rc-btn-2 flex-1">
             Batal
           </button>
         </div>
@@ -129,48 +171,90 @@ export default function Page() {
     );
   }
 
-  return (
-    <main className="flex flex-col gap-6 p-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold">Halo, {nama || 'Pasien'}</h1>
-
-      {galat && (
-        <div role="alert" className="bg-red-50 border border-red-300 rounded-xl p-3 text-base">
-          {galat}
+  if (keadaan === 'belum_ada_resep') {
+    return (
+      <main className="rc-wrap min-h-screen">
+        <div>
+          <h1 className="rc-judul">Belum ada resep</h1>
+          <p className="rc-sub">
+            Minta fisioterapis Anda membuat resep, lalu pindai QR-nya dengan kamera ponsel.
+          </p>
         </div>
-      )}
 
-      {/* Kartu kepatuhan */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-base text-gray-600">7 hari terakhir</p>
-        <p className="text-3xl font-bold text-blue-700">
-          {sesiMingguIni} <span className="text-lg font-normal text-gray-500">dari {sesiPerMinggu} sesi</span>
+        {galat && <div role="alert" className="rc-alert">{galat}</div>}
+
+        <form onSubmit={handleHubungkan} className="rc-card flex flex-col gap-3" noValidate>
+          <label htmlFor="kode" className="text-base font-semibold">
+            Atau ketik kode dari fisioterapis
+          </label>
+          <input
+            id="kode"
+            value={kode}
+            onChange={e => setKode(e.target.value)}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            inputMode="text"
+            maxLength={12}
+            placeholder="Contoh: 3F9A12CB"
+            aria-describedby={galatKode ? 'galat-kode' : undefined}
+            className="min-h-[56px] rounded-xl border border-slate-300 px-4 text-xl uppercase tracking-widest"
+          />
+          {galatKode && (
+            <p id="galat-kode" role="alert" className="rc-alert">{galatKode}</p>
+          )}
+          <button type="submit" className="rc-btn">Hubungkan</button>
+        </form>
+
+        <Link href="/tamu" className="rc-tautan self-start">Coba latihan tanpa akun</Link>
+        {tombolKeluar}
+      </main>
+    );
+  }
+
+  return (
+    <main className="rc-wrap min-h-screen">
+      <div>
+        <p className="rc-chip">Beranda pasien</p>
+        <h1 className="rc-judul mt-2">Halo, {nama || 'Pasien'}</h1>
+      </div>
+
+      {galat && <div role="alert" className="rc-alert">{galat}</div>}
+
+      <div className="rc-card">
+        <p className="text-base text-muted">7 hari terakhir</p>
+        <p className="text-5xl font-bold tabular-nums text-brand-700">
+          {sesiMingguIni}
+          <span className="text-xl font-medium text-muted"> dari {sesiPerMinggu} sesi</span>
         </p>
+        <div className="mt-3 h-2.5 rounded-full bg-slate-200" aria-hidden="true">
+          <div
+            className="h-2.5 rounded-full bg-brand-700"
+            style={{ width: `${Math.min(100, Math.round((sesiMingguIni / Math.max(1, sesiPerMinggu)) * 100))}%` }}
+          />
+        </div>
       </div>
 
       {antreanCount > 0 && (
-        <p className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
-          {antreanCount} sesi menunggu dikirim
-        </p>
+        <p className="rc-info" role="status">{antreanCount} sesi menunggu dikirim</p>
       )}
 
-      {/* Tombol utama ≥ 64px */}
       <button
         onClick={async () => {
           await suara.buka();
           router.push('/pasien/sesi');
         }}
-        className="btn-utama bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="rc-btn"
       >
         Mulai latihan
       </button>
 
-      {/* Tombol sekunder ≥ 44px */}
-      <button
-        onClick={() => setKonfirmHapus(true)}
-        className="btn-sekunder text-red-600 border border-red-200 rounded-xl hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-400 self-start"
-      >
-        Hapus data saya
-      </button>
+      <div className="flex flex-col gap-4 border-t border-slate-200 pt-5">
+        {tombolKeluar}
+        <button onClick={() => setKonfirmHapus(true)} className="rc-btn-bahaya self-start">
+          Hapus data saya
+        </button>
+      </div>
     </main>
   );
 }

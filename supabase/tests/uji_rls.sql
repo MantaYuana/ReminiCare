@@ -65,21 +65,15 @@ do $$ begin
 end $$;
 
 -- ==============================================================================
--- ===== Bagian B: RPC (Uji Fase 2 / 0002_fungsi.sql & 0003_sintetis.sql)   =====
+-- ===== Bagian B: RPC (Uji Fase 2 / 0002_fungsi.sql)                       =====
 -- ==============================================================================
 do $$
 declare v_kode text;
 begin
-  -- perangkat: nyeri idempoten, tidak bisa jadi sandbox
+  -- perangkat: nyeri idempoten
   perform set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-000000000000","role":"authenticated","is_anonymous":true}', true);
   assert public.lapor_nyeri('33333333-0000-0000-0000-000000000000', 1) = true, 'nyeri pertama';
   assert public.lapor_nyeri('33333333-0000-0000-0000-000000000000', 2) = false, 'nyeri kedua false';
-  begin
-    perform public.buat_sandbox();
-    raise exception 'GAGAL: perangkat pasien bisa buat_sandbox';
-  exception when others then
-    if sqlerrm not like '%perangkat_pasien%' then raise; end if;
-  end;
 
   -- B tidak bisa buat_kode pasien A
   perform set_config('request.jwt.claims', '{"sub":"bbbbbbbb-0000-0000-0000-000000000000","role":"authenticated"}', true);
@@ -113,5 +107,19 @@ begin
   end;
 end $$;
 
-rollback;
+-- ==============================================================================
+-- ===== Bagian C: Sandbox (jalankan setelah 0003_sintetis.sql)             =====
+-- ==============================================================================
+-- jalankan setelah 0003_sintetis.sql
+do $$
+begin
+  perform set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-000000000000","role":"authenticated","is_anonymous":true}', true);
+  begin
+    perform public.buat_sandbox();
+    raise exception 'GAGAL: perangkat pasien bisa buat_sandbox';
+  exception when others then
+    if sqlerrm not like '%perangkat_pasien%' then raise; end if;
+  end;
+end $$;
 
+rollback;

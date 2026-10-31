@@ -412,7 +412,7 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
             }}
             required
             placeholder="5–20"
-            className={`${kelasInput} sm:max-w-48`}
+            className={`${kelasInput}`}
           />
         </div>
 
@@ -432,7 +432,7 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
               }}
               required
               placeholder="1–7"
-              className={`${kelasInput} sm:max-w-48`}
+              className={`${kelasInput}`}
             />
           </div>
         )}

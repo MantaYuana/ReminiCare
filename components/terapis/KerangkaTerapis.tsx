@@ -34,7 +34,7 @@ export default function KerangkaTerapis({ t, halaman, judul, tanpaCari, cari, on
   const bawah: ItemNav[] = [
     { label: 'Settings', ikon: <IkonPengaturan />, nonaktif: true },
     {
-      label: t.sedangIsiContoh ? 'Mengisi…' : t.adaContoh ? 'Atur ulang data contoh' : 'Isi data contoh',
+      label: t.sedangIsiContoh ? 'Mengisi…' : t.adaContoh ? 'Atur ulang contoh' : 'Isi data contoh',
       ikon: <IkonRiwayat />,
       onClick: t.adaContoh ? () => t.setKonfirmasiAturUlang(true) : t.jalankanIsiContoh,
       nonaktif: t.sedangIsiContoh || !t.daftarSah,

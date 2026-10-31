@@ -53,7 +53,7 @@ function Item({ item, tertutup, tutupLaci }: { item: ItemNav; tertutup: boolean;
   const isi = (
     <>
       {item.ikon}
-      <span className={`whitespace-nowrap transition-opacity duration-200 motion-reduce:transition-none ${tertutup ? 'md:hidden' : ''}`}>
+      <span className={`min-w-0 truncate transition-opacity duration-200 motion-reduce:transition-none ${tertutup ? 'md:hidden' : ''}`}>
         {item.label}
       </span>
     </>
@@ -119,7 +119,7 @@ export default function DashboardShell({ judul, atas, bawah = [], tombol, panel,
   const tutupLaci = () => setLaci(false);
 
   return (
-    <div className={penuh ? 'min-h-screen bg-black' : 'flex min-h-screen bg-white md:gap-6 md:p-4'}>
+    <div className={penuh ? 'min-h-screen bg-black' : 'flex min-h-screen bg-white md:gap-8 md:p-8'}>
       {laci && !penuh && (
         <button
           type="button"
@@ -130,7 +130,7 @@ export default function DashboardShell({ judul, atas, bawah = [], tombol, panel,
       )}
 
       <div
-        className={`${penuh ? 'hidden ' : ''}fixed inset-y-0 left-0 z-40 p-3 transition-[width,translate] duration-300 ease-out motion-reduce:transition-none md:sticky md:top-4 md:h-[calc(100vh-2rem)] md:self-start md:translate-x-0 md:p-0 ${
+        className={`${penuh ? 'hidden ' : ''}fixed inset-y-0 left-0 z-40 p-3 transition-[width,translate] duration-300 ease-out motion-reduce:transition-none md:sticky md:top-8 md:h-[calc(100vh-4rem)] md:self-start md:translate-x-0 md:p-0 ${
           laci ? 'translate-x-0' : '-translate-x-full'
         } ${tertutup ? 'md:w-22' : 'md:w-64'} w-72 shrink-0`}
       >
@@ -165,7 +165,7 @@ export default function DashboardShell({ judul, atas, bawah = [], tombol, panel,
         </aside>
       </div>
 
-      <div className={penuh ? 'flex flex-col' : 'flex min-w-0 flex-1 flex-col gap-6 px-4 py-5 sm:px-6 md:p-0 xl:flex-row'}>
+      <div className={penuh ? 'flex flex-col' : 'flex min-w-0 flex-1 flex-col gap-8 px-4 py-5 sm:px-6 md:p-0 xl:flex-row'}>
         <main className={`flex min-w-0 flex-1 flex-col ${penuh ? '' : 'gap-6'}`}>
           <h1 className="sr-only">{judul}</h1>
 
@@ -227,7 +227,7 @@ export default function DashboardShell({ judul, atas, bawah = [], tombol, panel,
         {panel && (
           <aside
             aria-label="Fisioterapis Anda"
-            className="rounded-3xl bg-white p-5 shadow-[0_8px_32px_rgba(20,24,25,0.10)] xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)] xl:w-72 xl:shrink-0 xl:self-start"
+            className="rounded-3xl bg-white p-5 shadow-[0_8px_32px_rgba(20,24,25,0.10)] xl:sticky xl:top-8 xl:h-[calc(100vh-4rem)] xl:w-72 xl:shrink-0 xl:self-start"
           >
             {panel}
           </aside>

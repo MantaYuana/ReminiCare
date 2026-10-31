@@ -1,6 +1,6 @@
-// lib/antrean.ts — Task 2
-// Antrean offline F11. Pabrik buatAntrean menerima dependensi supaya tes tidak
-// butuh DOM atau Supabase.
+// lib/antrean.ts
+// Offline queue for session and pain data. Factory pattern allows
+// dependency injection so tests run without DOM or network access.
 
 import type { BarisSesi } from './kinematik/mesin.ts';
 
@@ -147,8 +147,8 @@ export function buatAntrean(dep: { simpan: PenyimpananKV; klien: KlienKirim }) {
   return { tambah, kirim, jumlahSesi };
 }
 
-// ── Singleton (dipakai halaman Next.js) ───────────────────────────────────
-// Dibungkus try/catch agar tidak crash saat di-import di Node (tes lib lain).
+// ── Singleton ─────────────────────────────────────────────────────────────
+// Lazy-initialized so importing this module in Node (tests) does not crash.
 
 function buatPenyimpananLokal(): PenyimpananKV {
   return {
@@ -165,19 +165,16 @@ function buatPenyimpananLokal(): PenyimpananKV {
   };
 }
 
-// Lazy import supabase agar tidak crash saat diimport di Node --test
-// Singleton dibuat di runtime browser, bukan saat module dimuat
+// Lazy import supabase — singleton is created at browser runtime, not at module load
 let _singleton: ReturnType<typeof buatAntrean> | null = null;
 
-// Nama key sesuai spec §4.2 dan plan Pindra: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-// (Supabase generasi baru mengganti nama dari anon key ke publishable key)
+// Supabase uses "publishable key" (newer projects) instead of the older "anon key" naming
 function supabaseKey(): string {
   return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
 }
 
 function dapatSingleton() {
   if (_singleton) return _singleton;
-  // Dinamis import supabase hanya di browser
   const klienBrowser: KlienKirim = {
     async upsertSesi(baris) {
       try {

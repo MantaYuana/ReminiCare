@@ -1,6 +1,6 @@
-// lib/lokal.ts — Task 2
-// Semua akses localStorage dibungkus try/catch. Kunci: rc_resep, rc_antrean,
-// rc_gagal, rc_riwayat:{pasien_id} (maks 30).
+// lib/lokal.ts
+// localStorage helpers. All access is wrapped in try/catch.
+// Keys used: rc_resep, rc_antrean, rc_gagal, rc_riwayat:{pasienId} (max 30).
 
 import type { ResepSalinan } from './kinematik/mesin.ts';
 import type { Sisi } from './kinematik/tipe.ts';

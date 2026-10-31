@@ -1,4 +1,5 @@
-// Tipe-tipe dari spec §6.2 — diisi sementara oleh Ari, akan ditimpa Manta tanpa diskusi
+// Session and prescription types — placeholder until the pose engine module is available.
+// This file will be overwritten by the pose engine owner without coordination.
 
 import type { Sisi, Gerakan, Toleransi, ModeKoreksi, KalimatCondong, Kandidat, HasilRepetisi, EventMesin, Baseline } from './tipe.ts';
 
@@ -63,7 +64,7 @@ export declare function agregatSesi(x: {
   delegate: 'GPU' | 'CPU';
 }): BarisSesi;
 
-// Konstanta — diisi Manta saat G1
+// Runtime constants — provided by the pose engine module at integration time
 export declare const KANDIDAT_CONDONG: Kandidat;
 export declare const SUARA_CONDONG: boolean;
 export declare const ISTIRAHAT_MS: number;

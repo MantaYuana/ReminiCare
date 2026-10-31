@@ -1,4 +1,5 @@
-// Tipe-tipe dari spec §6.1 — diisi sementara oleh Ari, akan ditimpa Manta tanpa diskusi
+// Kinematic types — placeholder until the pose engine module is available.
+// This file will be overwritten by the pose engine owner without coordination.
 
 export type Sisi = 'kiri' | 'kanan';
 export type Gerakan = 'jangkau_depan' | 'jangkau_samping';

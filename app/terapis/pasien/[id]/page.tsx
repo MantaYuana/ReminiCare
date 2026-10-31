@@ -18,6 +18,7 @@ import FormResep, {
   type ModeKoreksiResep,
   type PilihanKalimatCondong,
 } from '../../../../components/FormResep';
+import type { MasukanRingkasan } from '../../../../lib/ringkasan';
 
 interface PasienDetail {
   id: string;
@@ -330,6 +331,16 @@ export default function DetailPasienPage(): React.JSX.Element {
   );
   const [galatKode, setGalatKode] = useState<string | null>(null);
 
+  // State Fase 7: Ringkasan AI (F20)
+  const [sedangRingkas, setSedangRingkas] = useState(false);
+  const [hasilRingkasan, setHasilRingkasan] = useState<{
+    sumber: 'ai' | 'templat';
+    teks: string;
+    alasan?: 'tanpa_kunci' | 'api_gagal' | 'kalimat' | 'angka_tidak_cocok';
+    masukan: MasukanRingkasan;
+  } | null>(null);
+  const [galatRingkasan, setGalatRingkasan] = useState<string | null>(null);
+
   // Pencegahan unmount memory leak, race condition, dan klik ganda
   const mountedRef = useRef(true);
   const seqRef = useRef(0);
@@ -339,6 +350,9 @@ export default function DetailPasienPage(): React.JSX.Element {
   const sedangTinjauRef = useRef(false);
   const judulFormTinjauRef = useRef<HTMLHeadingElement | null>(null);
   const statusTinjauanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sedangRingkasRef = useRef(false);
+  const ringkasanSeqRef = useRef(0);
+  const ringkasanAbortRef = useRef<AbortController | null>(null);
 
   // Efek pelacak status mount dan pembersihan timer
   useEffect(() => {
@@ -350,6 +364,9 @@ export default function DetailPasienPage(): React.JSX.Element {
       }
       if (statusTinjauanTimeoutRef.current) {
         clearTimeout(statusTinjauanTimeoutRef.current);
+      }
+      if (ringkasanAbortRef.current) {
+        ringkasanAbortRef.current.abort();
       }
     };
   }, []);
@@ -739,6 +756,78 @@ export default function DetailPasienPage(): React.JSX.Element {
       if (mountedRef.current) {
         sedangTinjauRef.current = false;
         setSedangTinjau(false);
+      }
+    }
+  }
+
+  // Handler buat ringkasan AI (Fase 7 / SPEC §9, §10.4, PLAN §3 Fase 7)
+  async function buatRingkasan() {
+    if (sedangRingkasRef.current) return;
+    sedangRingkasRef.current = true;
+
+    if (ringkasanAbortRef.current) {
+      ringkasanAbortRef.current.abort();
+    }
+    const abortController = new AbortController();
+    ringkasanAbortRef.current = abortController;
+
+    const curSeq = ++ringkasanSeqRef.current;
+    setSedangRingkas(true);
+    setGalatRingkasan(null);
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        if (!mountedRef.current) return;
+        setGalatRingkasan('Sesi habis, masuk lagi');
+        setSedangRingkas(false);
+        sedangRingkasRef.current = false;
+        return;
+      }
+
+      const res = await fetch('/api/ringkasan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ pasien_id: pasien?.id }),
+        signal: abortController.signal,
+      });
+
+      if (!mountedRef.current || curSeq !== ringkasanSeqRef.current) return;
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setGalatRingkasan('Sesi habis, masuk lagi');
+        } else if (res.status === 403) {
+          setGalatRingkasan('Pasien ini bukan milik akun Anda');
+        } else {
+          setGalatRingkasan('Ringkasan gagal dibuat, coba lagi');
+        }
+        setSedangRingkas(false);
+        sedangRingkasRef.current = false;
+        return;
+      }
+
+      const data = await res.json();
+      if (!mountedRef.current || curSeq !== ringkasanSeqRef.current) return;
+
+      setHasilRingkasan(data);
+    } catch (err: unknown) {
+      if (!mountedRef.current || curSeq !== ringkasanSeqRef.current) return;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      setGalatRingkasan('Ringkasan gagal dibuat, coba lagi');
+    } finally {
+      if (mountedRef.current && curSeq === ringkasanSeqRef.current) {
+        setSedangRingkas(false);
+        sedangRingkasRef.current = false;
       }
     }
   }
@@ -1633,8 +1722,140 @@ export default function DetailPasienPage(): React.JSX.Element {
         )}
       </section>
 
-      {/* 6. PLACEHOLDER FASE 7: Kartu Ringkasan AI */}
-      {/* Placeholder Fase 7: Kartu Ringkasan AI (Gemini / templat deterministik) */}
+      {/* 6. BAGIAN RINGKASAN AI (Fase 7 / F20, SPEC §9, §10.4 butir 6) */}
+      <section
+        aria-labelledby="judul-ringkasan-ai"
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      >
+        <div className="space-y-1">
+          <h2
+            id="judul-ringkasan-ai"
+            className="text-2xl font-bold text-slate-900"
+          >
+            Ringkasan AI
+          </h2>
+          <p className="text-lg text-slate-600">
+            Hanya angka tanpa nama yang dikirim ke layanan AI Google (Gemini).
+            Ringkasan tidak mengubah resep.
+          </p>
+        </div>
+
+        {galatRingkasan && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-300 bg-red-50 p-4 text-lg font-medium text-red-900"
+          >
+            {galatRingkasan}
+          </div>
+        )}
+
+        <div>
+          <button
+            type="button"
+            onClick={buatRingkasan}
+            disabled={sedangRingkas}
+            aria-busy={sedangRingkas}
+            className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-sky-700 px-8 py-4 text-xl font-bold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500 disabled:opacity-50 shadow-sm"
+          >
+            {sedangRingkas ? (
+              <span className="flex items-center gap-3">
+                <svg
+                  className="h-6 w-6 animate-spin"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                  />
+                </svg>
+                Menyusun Ringkasan...
+              </span>
+            ) : (
+              'Buat ringkasan'
+            )}
+          </button>
+        </div>
+
+        {/* Kontainer role="status" aria-live="polite" selalu dirender di DOM agar screen reader mendeteksi pembaruan konten */}
+        <div role="status" aria-live="polite">
+          {hasilRingkasan && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                {hasilRingkasan.sumber === 'ai' ? (
+                  <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 font-bold text-emerald-900 text-lg">
+                    <svg
+                      className="h-6 w-6 text-emerald-700 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                      />
+                    </svg>
+                    <span>Ringkasan AI, cek grafik sebelum memutuskan</span>
+                  </div>
+                ) : (
+                  <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 font-bold text-amber-950 text-lg">
+                    <svg
+                      className="h-6 w-6 text-amber-700 shrink-0"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <span>Ringkasan templat, cek grafik sebelum memutuskan</span>
+                    {hasilRingkasan.alasan && (
+                      <span className="rounded bg-amber-200/80 px-2 py-0.5 font-medium text-amber-900 text-lg">
+                        {hasilRingkasan.alasan === 'tanpa_kunci'
+                          ? 'Kunci layanan AI belum diatur'
+                          : hasilRingkasan.alasan === 'api_gagal'
+                          ? 'Layanan AI tidak dapat dihubungi'
+                          : 'Keluaran AI ditolak pemeriksaan otomatis'}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <p className="text-lg leading-relaxed text-slate-800">
+                {hasilRingkasan.teks}
+              </p>
+
+              <details className="pt-2">
+                <summary className="cursor-pointer text-lg font-semibold text-sky-700 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded select-none inline-flex min-h-[44px] items-center">
+                  Lihat angka yang dikirim
+                </summary>
+                <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-300 bg-white p-4 font-mono text-lg text-slate-800">
+                  {JSON.stringify(hasilRingkasan.masukan, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* 7. BAGIAN TAUTAN PERANGKAT (Fase 4c / F03) */}
       <section

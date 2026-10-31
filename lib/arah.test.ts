@@ -42,7 +42,8 @@ describe('ruteUntuk', () => {
     assert.equal(ruteUntuk({ jenis: 'terapis', uid: 'u', nama: 'A' }, null), '/terapis');
     assert.equal(ruteUntuk({ jenis: 'pasien', uid: 'u', pasienId: 'p' }, null), '/pasien');
     assert.equal(ruteUntuk({ jenis: 'pasien_baru', uid: 'u' }, null), '/pasien');
-    assert.equal(ruteUntuk({ jenis: 'luring' }, null), '/pasien');
+    assert.equal(ruteUntuk({ jenis: 'luring', uid: 'u' }, null), '/pasien');
+    assert.equal(ruteUntuk({ jenis: 'luring' }, null), null, 'luring tanpa sesi tetap di halaman masuk');
     assert.equal(ruteUntuk({ jenis: 'tanpa_peran', uid: 'u' }, null), null);
     assert.equal(ruteUntuk({ jenis: 'keluar' }, null), null);
   });
@@ -55,7 +56,7 @@ describe('ruteUntuk', () => {
   });
 
   it('luring mengabaikan lanjut; tanpa_peran/keluar tetap di halaman', () => {
-    assert.equal(ruteUntuk({ jenis: 'luring' }, '/k/ABCD1234'), '/pasien');
+    assert.equal(ruteUntuk({ jenis: 'luring', uid: 'u' }, '/k/ABCD1234'), '/pasien');
     assert.equal(ruteUntuk({ jenis: 'tanpa_peran', uid: 'u' }, '/k/ABCD1234'), null);
     assert.equal(ruteUntuk({ jenis: 'keluar' }, '/k/ABCD1234'), null);
   });

@@ -73,6 +73,7 @@ function buatKlien(statusSesi: number | null, statusNyeri?: { status: number | n
     async laporNyeri(_id: string, _n: 0 | 1 | 2) {
       return statusNyeri ?? { status: 200, hasil: true };
     },
+    async uidSekarang() { return 'u1'; },
   };
 }
 
@@ -136,6 +137,7 @@ describe('antrean', () => {
       async laporNyeri(_id: string, _n: 0 | 1 | 2) {
         return { status: 200, hasil: true };
       },
+      async uidSekarang() { return 'u1'; },
     };
     const { tambah, kirim, jumlahSesi } = buatAntrean({ simpan, klien });
 
@@ -159,6 +161,7 @@ describe('antrean', () => {
       async laporNyeri(_id: string, _n: 0 | 1 | 2) {
         return { status: 200, hasil: false }; // false = tetap selesai
       },
+      async uidSekarang() { return 'u1'; },
     };
     const { tambah, kirim, jumlahSesi } = buatAntrean({ simpan, klien });
 
@@ -203,5 +206,66 @@ describe('antrean', () => {
     tambah({ jenis: 'nyeri', sesi_id: 'sesi-1', nilai: 0 });
 
     assert.equal(jumlahSesi(), 1, 'nyeri tidak dihitung oleh jumlahSesi');
+  });
+
+  it('jumlahOp menghitung sesi dan nyeri (guard Keluar)', () => {
+    const { tambah, jumlahOp } = buatAntrean({ simpan: buatSimpanan(), klien: buatKlien(201) });
+    tambah({ jenis: 'nyeri', sesi_id: 'sesi-1', nilai: 2 });
+    assert.equal(jumlahOp(), 1, 'nyeri yang tertunda harus menahan Keluar');
+  });
+
+  it('belum masuk: tidak mengirim apa pun, antrean utuh', async () => {
+    const klien = { ...buatKlien(201), async uidSekarang() { return null; } };
+    let dikirim = 0;
+    klien.upsertSesi = async () => { dikirim++; return { status: 201 }; };
+    const { tambah, kirim, jumlahSesi } = buatAntrean({ simpan: buatSimpanan(), klien });
+    tambah({ jenis: 'sesi', baris: buatBarisSesi('sesi-1') });
+    await kirim();
+    assert.equal(dikirim, 0);
+    assert.equal(jumlahSesi(), 1);
+  });
+
+  it('op milik akun lain tidak terkirim, pindah ke rc_gagal', async () => {
+    const simpan = buatSimpanan();
+    let uid = 'akun-a';
+    const dikirim: string[] = [];
+    const klien = {
+      async upsertSesi(b: BarisSesi) { dikirim.push(b.id); return { status: null }; },   // luring: op tetap tertahan
+      async laporNyeri(_id: string, _n: 0 | 1 | 2) { return { status: 200, hasil: true }; },
+      async uidSekarang() { return uid; },
+    };
+    const { tambah, kirim, jumlahOp } = buatAntrean({ simpan, klien });
+
+    tambah({ jenis: 'sesi', baris: buatBarisSesi('sesi-a') });
+    await kirim();                       // dicap milik akun-a, gagal jaringan
+    uid = 'akun-b';                      // akun lain masuk di perangkat yang sama
+    await kirim();
+
+    assert.deepEqual(dikirim, ['sesi-a'], 'sesi akun-a tidak dikirim atas nama akun-b');
+    assert.equal(jumlahOp(), 0);
+    assert.equal(JSON.parse(simpan.dapatkan('rc_gagal')!).length, 1, 'data tidak hilang');
+  });
+
+  it('op yang ditambah saat pengiriman berjalan tidak hilang', async () => {
+    const simpan = buatSimpanan();
+    let lepas!: () => void;
+    const tahan = new Promise<void>(r => { lepas = r; });
+    const nyeri: string[] = [];
+    const klien = {
+      async upsertSesi(_b: BarisSesi) { await tahan; return { status: 201 }; },
+      async laporNyeri(id: string, _n: 0 | 1 | 2) { nyeri.push(id); return { status: 200, hasil: true }; },
+      async uidSekarang() { return 'u1'; },
+    };
+    const { tambah, kirim, jumlahOp } = buatAntrean({ simpan, klien });
+
+    tambah({ jenis: 'sesi', baris: buatBarisSesi('sesi-1') });
+    const p = kirim();
+    await new Promise(r => setImmediate(r));                 // upsert sedang ditunggu
+    tambah({ jenis: 'nyeri', sesi_id: 'sesi-1', nilai: 1 });  // ketuk nyeri di layar ringkasan
+    lepas();
+    await p;
+
+    assert.deepEqual(nyeri, ['sesi-1'], 'nyeri ikut terkirim pada putaran yang sama');
+    assert.equal(jumlahOp(), 0);
   });
 });

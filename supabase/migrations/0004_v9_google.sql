@@ -1,6 +1,7 @@
 -- ReminiCare Migration 0004: V9 login Google (peran via daftar, tanpa trigger daftar dan sandbox)
 -- Berdasarkan SPEC-ReminiCare-ramping.md v1.1 §8.3–§8.5, §8.8 dan 2026-11-01-backend-pindra-v9.md Task 2–3
--- 0001–0003 tidak diubah karena mungkin sudah dijalankan. File ini berlaku di atas DB lama maupun DB baru (0001 → 0004).
+-- 0001–0003 tidak diubah karena mungkin sudah dijalankan. File ini berlaku di atas DB lama maupun DB baru (0001 → 0004),
+-- dan aman dijalankan ulang (semua langkah dijaga if [not] exists), jadi perbaikan di file ini cukup diterapkan dengan menjalankannya lagi.
 -- Urutan langkah wajib: kebijakan lama bergantung pada kolom is_demo.
 
 -- ==============================================================================
@@ -13,7 +14,14 @@ drop function if exists public.tangani_pengguna_baru ();
 -- ==============================================================================
 -- 2. Hapus sandbox lama (cascade ke pasien → sesi → eskalasi)
 -- ==============================================================================
-delete from public.profil where is_demo;
+-- dijaga: saat dijalankan ulang, kolom is_demo sudah dibuang di langkah 5
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'profil' and column_name = 'is_demo') then
+    delete from public.profil where is_demo;
+  end if;
+end $$;
 
 -- ==============================================================================
 -- 3. Lepas perangkat anonim (anonymous sign-in OFF, perangkat lama tidak boleh menulis sesi lagi)
@@ -35,14 +43,16 @@ where
 -- ==============================================================================
 -- 4. Kolom peran: satu akun = satu peran. Profil lama semuanya fisioterapis.
 -- ==============================================================================
-alter table public.profil add column peran text;
+alter table public.profil add column if not exists peran text;
 
-update public.profil set peran = 'fisioterapis';
+-- hanya profil lama (peran null); saat dijalankan ulang, profil pasien hasil daftar tidak boleh ikut berubah
+update public.profil set peran = 'fisioterapis' where peran is null;
+
+alter table public.profil alter column peran set not null;
+
+alter table public.profil drop constraint if exists profil_peran_cek;
 
 alter table public.profil
-alter column peran
-set
-    not null,
 add constraint profil_peran_cek check (
     peran in ('fisioterapis', 'pasien')
 );
@@ -51,9 +61,9 @@ add constraint profil_peran_cek check (
 -- ==============================================================================
 -- 5. Buang is_demo (kebijakan sesi_sisip lama memakai kolom ini, jadi dibuang dulu)
 -- ==============================================================================
-drop policy sesi_sisip on public.sesi;
+drop policy if exists sesi_sisip on public.sesi;
 
-alter table public.profil drop column is_demo;
+alter table public.profil drop column if exists is_demo;
 
 -- ==============================================================================
 -- 6. RLS baru (SPEC §8.3)
@@ -75,7 +85,7 @@ with
     );
 -- [V9] cabang terapis demo dihapus
 
-drop policy pasien_sisip on public.pasien;
+drop policy if exists pasien_sisip on public.pasien;
 
 create policy pasien_sisip on public.pasien for
 insert
@@ -114,24 +124,23 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_ada text;
-  v_nama text;
 begin
   if v_uid is null then raise exception 'belum_masuk'; end if;
+  -- sesi anonim pra-V9 masih bisa hidup lewat refresh token; V9 hanya menerima akun Google
+  if coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) then raise exception 'anonim_ditolak'; end if;
   if p_peran not in ('fisioterapis', 'pasien') then raise exception 'peran_tidak_sah'; end if;
 
-  select peran into v_ada from public.profil where id = v_uid;
-  if v_ada is not null then
-    if v_ada <> p_peran then raise exception 'peran_lain'; end if;
-    return v_ada;                                         -- idempoten: sign up ulang dengan peran sama
-  end if;
-
-  select left(coalesce(u.raw_user_meta_data ->> 'full_name', u.raw_user_meta_data ->> 'name', ''), 80)
-    into v_nama
+  -- on conflict: dua panggilan bersamaan (dua tab) tidak menabrak primary key
+  insert into public.profil (id, peran, nama)
+  select v_uid, p_peran, left(coalesce(u.raw_user_meta_data ->> 'full_name', u.raw_user_meta_data ->> 'name', ''), 80)
     from auth.users u
-   where u.id = v_uid;
+   where u.id = v_uid
+  on conflict (id) do nothing;
 
-  insert into public.profil (id, peran, nama) values (v_uid, p_peran, coalesce(v_nama, ''));
-  return p_peran;
+  select peran into v_ada from public.profil where id = v_uid;
+  if v_ada is null then raise exception 'belum_masuk'; end if;
+  if v_ada <> p_peran then raise exception 'peran_lain'; end if;
+  return v_ada;                                           -- idempoten: sign up ulang dengan peran sama
 end;
 $$;
 

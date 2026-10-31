@@ -36,13 +36,16 @@ export type ResepTamu = {
   kalimat_condong: PilihanKalimatCondong;
 };
 
-export interface FormResepProps {
-  mode?: 'baru' | 'edit' | 'tamu';
+type PropsUmum = {
   pasien?: DataResepPasien | null;
   onBerhasil?: (pasienId: string) => void;
   onBatal?: () => void;
-  onKirim?: (r: ResepTamu) => void;
-}
+};
+
+// Mode tamu wajib membawa onKirim (dicek tsc); mode baru/edit tidak memakainya
+export type FormResepProps =
+  | (PropsUmum & { mode?: 'baru' | 'edit'; onKirim?: never })
+  | (PropsUmum & { mode: 'tamu'; onKirim: (r: ResepTamu) => void });
 
 export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }: FormResepProps) {
   const router = useRouter();
@@ -104,15 +107,12 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
 
     // 1. Validasi klien persis constraint DB
     // Mode tamu: nama panggilan tidak divalidasi
-    if (!isTamu) {
-      const namaBersih = namaPanggilan.trim();
-      if (namaBersih.length < 1 || namaBersih.length > 40) {
-        sedangSubmitRef.current = false;
-        setGalat('Nama panggilan harus diisi antara 1 sampai 40 karakter.');
-        return;
-      }
+    const namaBersih = namaPanggilan.trim();
+    if (!isTamu && (namaBersih.length < 1 || namaBersih.length > 40)) {
+      sedangSubmitRef.current = false;
+      setGalat('Nama panggilan harus diisi antara 1 sampai 40 karakter.');
+      return;
     }
-    const namaBersih = isTamu ? '' : namaPanggilan.trim();
 
     if (sisiTerdampak !== 'kiri' && sisiTerdampak !== 'kanan') {
       sedangSubmitRef.current = false;
@@ -169,7 +169,7 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
       setGalat('Mode koreksi pada formulir hanya boleh Penuh atau Mati.');
       return;
     }
-    if ((!isEdit || isTamu) && modeKoreksi !== 'penuh' && modeKoreksi !== 'mati') {
+    if (!isEdit && modeKoreksi !== 'penuh' && modeKoreksi !== 'mati') {
       sedangSubmitRef.current = false;
       setGalat('Mode koreksi pada formulir baru hanya boleh Penuh atau Mati.');
       return;
@@ -184,19 +184,23 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
     // Mode tamu: panggil onKirim secara sinkron
     if (isTamu) {
       sedangSubmitRef.current = false;
-      if (onKirim) {
-        const nilaiTamu: ResepTamu = {
-          sisi_terdampak: sisiTerdampak,
-          gerakan,
-          repetisi: nRepetisi,
-          toleransi_batang: toleransiBatang,
-          toleransi_bahu: toleransiBahu,
-          durasi_persen: nDurasi,
-          mode_koreksi: modeKoreksi as 'penuh' | 'mati',
-          kalimat_condong: kalimatCondong,
-        };
-        onKirim(nilaiTamu);
-      }
+      onKirim?.({
+        sisi_terdampak: sisiTerdampak,
+        gerakan,
+        repetisi: nRepetisi,
+        toleransi_batang: toleransiBatang,
+        toleransi_bahu: toleransiBahu,
+        durasi_persen: nDurasi,
+        mode_koreksi: modeKoreksi as 'penuh' | 'mati',
+        kalimat_condong: kalimatCondong,
+      });
+      return;
+    }
+
+    // mode="edit" eksplisit tanpa id (data belum termuat) tidak boleh jatuh ke jalur insert
+    if (isEdit && !pasien?.id) {
+      sedangSubmitRef.current = false;
+      setGalat('Data pasien belum termuat. Muat ulang halaman lalu coba lagi.');
       return;
     }
 

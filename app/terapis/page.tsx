@@ -35,6 +35,8 @@ export default function DasborTerapisPage() {
   // State untuk tombol data contoh
   const [sedangIsiContoh, setSedangIsiContoh] = useState<boolean>(false);
   const [konfirmasiAturUlang, setKonfirmasiAturUlang] = useState<boolean>(false);
+  // true setelah isi_contoh sukses, walau muat ulang daftar sesudahnya gagal
+  const [contohTerisi, setContohTerisi] = useState<boolean>(false);
 
   // Pengaman urutan permintaan dan status unmount
   const seqRef = useRef<number>(0);
@@ -165,7 +167,8 @@ export default function DasborTerapisPage() {
         return;
       }
 
-      // Sukses: muat ulang daftar pasien
+      // Sukses: klik berikutnya wajib lewat konfirmasi atur ulang, lalu muat ulang daftar pasien
+      setContohTerisi(true);
       await muatData();
     } catch (err: unknown) {
       setGalat(pesanGalat(err as { message?: string }));
@@ -177,7 +180,7 @@ export default function DasborTerapisPage() {
 
   // Hitung apakah ada data contoh. Hanya bermakna bila daftarSah: sebelum itu daftar kosong,
   // dan tombol akan memanggil isi_contoh tanpa konfirmasi atur ulang.
-  const adaContoh = daftarPasien.some(p => p.is_sintetis);
+  const adaContoh = contohTerisi || daftarPasien.some(p => p.is_sintetis);
 
   if (sedangMemeriksa) {
     return (
@@ -395,7 +398,7 @@ export default function DasborTerapisPage() {
             aria-modal="true"
             aria-labelledby="dialog-title"
             aria-describedby="dialog-desc"
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
             onClick={(e) => {
               // Tutup dialog bila klik di luar
               if (e.target === e.currentTarget) {

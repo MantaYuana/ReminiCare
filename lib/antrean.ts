@@ -21,12 +21,21 @@ export type PenyimpananKV = {
 export type KlienKirim = {
   upsertSesi(b: BarisSesi): Promise<{ status: number | null }>;
   laporNyeri(id: string, n: 0 | 1 | 2): Promise<{ status: number | null; hasil: boolean | null }>;
+  /** uid akun yang sedang masuk; null = belum masuk, jadi jangan kirim apa pun. */
+  uidSekarang(): Promise<string | null>;
 };
+
+// Op di penyimpanan membawa uid akun pemiliknya, dicap saat kirim() pertama kali melihatnya
+// (tambah() selalu langsung diikuti kirim(), jadi pemiliknya akun yang sedang masuk).
+type OpTersimpan = Op & { uid?: string };
 
 // ── Konstanta kunci ────────────────────────────────────────────────────────
 
 const KUNCI_ANTREAN = 'rc_antrean';
 const KUNCI_GAGAL   = 'rc_gagal';
+
+/** Event window setelah antrean berubah, supaya UI menghitung ulang tanpa polling. */
+export const EVENT_ANTREAN = 'rc-antrean';
 
 // ── Pabrik ─────────────────────────────────────────────────────────────────
 
@@ -36,17 +45,17 @@ export function buatAntrean(dep: { simpan: PenyimpananKV; klien: KlienKirim }) {
 
   // ── Baca / tulis antrean ────────────────────────────────────────────────
 
-  function bacaAntrean(): Op[] {
+  function bacaAntrean(): OpTersimpan[] {
     try {
       const raw = simpan.dapatkan(KUNCI_ANTREAN);
       if (!raw) return [];
-      return JSON.parse(raw) as Op[];
+      return JSON.parse(raw) as OpTersimpan[];
     } catch {
       return [];
     }
   }
 
-  function tulisAntrean(ops: Op[]): boolean {
+  function tulisAntrean(ops: OpTersimpan[]): boolean {
     try {
       simpan.atur(KUNCI_ANTREAN, JSON.stringify(ops));
       return true;
@@ -60,15 +69,27 @@ export function buatAntrean(dep: { simpan: PenyimpananKV; klien: KlienKirim }) {
 
   // ── Daftar gagal ────────────────────────────────────────────────────────
 
-  function tambahGagal(op: Op): void {
+  function tambahGagal(op: OpTersimpan): void {
     try {
       const raw = simpan.dapatkan(KUNCI_GAGAL);
-      const arr: Op[] = raw ? (JSON.parse(raw) as Op[]) : [];
+      const arr: OpTersimpan[] = raw ? (JSON.parse(raw) as OpTersimpan[]) : [];
       arr.push(op);
       simpan.atur(KUNCI_GAGAL, JSON.stringify(arr));
     } catch {
       // abaikan — kuota mungkin penuh
     }
+  }
+
+  /** Cap op baru dengan `uid`; op milik akun lain pindah ke rc_gagal supaya tidak terkirim atas nama akun ini. */
+  function siapkan(uid: string): OpTersimpan[] {
+    const semua = bacaAntrean();
+    const milik: OpTersimpan[] = [];
+    for (const op of semua) {
+      if (!op.uid || op.uid === uid) milik.push({ ...op, uid });
+      else tambahGagal(op);
+    }
+    if (milik.length !== semua.length || semua.some(op => !op.uid)) tulisAntrean(milik);
+    return milik;
   }
 
   // ── API publik ──────────────────────────────────────────────────────────
@@ -92,15 +113,20 @@ export function buatAntrean(dep: { simpan: PenyimpananKV; klien: KlienKirim }) {
    *  - null / 5xx → berhenti, sisakan di antrean
    *  - 4xx lain   → pindah ke rc_gagal, lanjut ke op berikutnya
    *  - 2xx        → hapus dari antrean
+   *  - belum masuk → tidak mengirim apa pun
    *  Guard sedangKirim mencegah dua pemanggilan bersamaan menggandakan pengiriman. */
   async function kirim(): Promise<void> {
     if (sedangKirim) return;
     sedangKirim = true;
 
     try {
-      let ops = bacaAntrean();
+      const uid = await klien.uidSekarang();
+      if (!uid) return;
 
-      while (ops.length > 0) {
+      while (true) {
+        // Baca ulang tiap putaran: tambah() bisa menyisipkan op (mis. nyeri) selama await di bawah
+        const ops = siapkan(uid);
+        if (ops.length === 0) break;
         const op = ops[0];
         let berhasil = false;
         let pindahGagal = false;
@@ -129,8 +155,8 @@ export function buatAntrean(dep: { simpan: PenyimpananKV; klien: KlienKirim }) {
         }
 
         if (berhasil || pindahGagal) {
-          ops = ops.slice(1); // buang op pertama
-          tulisAntrean(ops);
+          // Hanya kirim() yang membuang, jadi op terdepan di penyimpanan masih op yang baru dikirim
+          tulisAntrean(bacaAntrean().slice(1));
           if (pindahGagal) tambahGagal(op);
         }
       }
@@ -144,7 +170,12 @@ export function buatAntrean(dep: { simpan: PenyimpananKV; klien: KlienKirim }) {
     return bacaAntrean().filter(op => op.jenis === 'sesi').length;
   }
 
-  return { tambah, kirim, jumlahSesi };
+  /** Hitung semua op (sesi + nyeri) yang belum terkirim. */
+  function jumlahOp(): number {
+    return bacaAntrean().length;
+  }
+
+  return { tambah, kirim, jumlahSesi, jumlahOp };
 }
 
 // ── Singleton ─────────────────────────────────────────────────────────────
@@ -158,6 +189,7 @@ function buatPenyimpananLokal(): PenyimpananKV {
     atur(k, v) {
       // Biarkan QuotaExceededError menjalar supaya tambah() bisa tangkap
       globalThis.localStorage?.setItem(k, v);
+      globalThis.dispatchEvent?.(new Event(EVENT_ANTREAN));
     },
     hapus(k) {
       try { globalThis.localStorage?.removeItem(k); } catch { /* abaikan */ }
@@ -199,6 +231,15 @@ function dapatSingleton() {
         return { status: null, hasil: null };
       }
     },
+    async uidSekarang() {
+      try {
+        const { supabase: sb } = await import('./supabase.ts');
+        const { data } = await sb.auth.getSession();   // baca sesi tersimpan, tidak butuh jaringan
+        return data.session?.user.id ?? null;
+      } catch {
+        return null;
+      }
+    },
   };
   _singleton = buatAntrean({ simpan: buatPenyimpananLokal(), klien: klienBrowser });
   return _singleton;
@@ -207,3 +248,4 @@ function dapatSingleton() {
 export const tambah   = (op: Op)         => dapatSingleton().tambah(op);
 export const kirim    = ()               => dapatSingleton().kirim();
 export const jumlahSesi = ()             => dapatSingleton().jumlahSesi();
+export const jumlahOp   = ()             => dapatSingleton().jumlahOp();

@@ -16,7 +16,8 @@ export function ruteUntuk(p: Peran, lanjut: string | null): string | null {
     case 'pasien_baru':
       return lanjutAman(lanjut) ?? '/pasien';
     case 'luring':
-      return '/pasien';
+      // tanpa uid = tidak ada sesi login sama sekali: tetap di halaman masuk
+      return p.uid ? '/pasien' : null;
     case 'tanpa_peran':
     case 'keluar':
       return null;

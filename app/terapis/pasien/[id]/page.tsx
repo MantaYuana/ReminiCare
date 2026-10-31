@@ -134,6 +134,53 @@ function labelGerakan(g: string): string {
   return g.replace(/_/g, ' ');
 }
 
+/**
+ * Fungsi-fungsi murni turunan data eskalasi (Fase 6 SPEC §10.4 & §8.6)
+ */
+
+// 1. tinjauTerakhir: nilai maksimum kolom `ditinjau` dari daftarEskalasi (null bila belum pernah ditinjau).
+function hitungTinjauTerakhir(daftar: BarisEskalasi[]): string | null {
+  const ditinjauList = daftar
+    .map((e) => e.ditinjau)
+    .filter((d): d is string => d !== null && d !== undefined);
+  if (ditinjauList.length === 0) return null;
+  // Urutkan menurun berdasarkan Date.parse untuk memperoleh tanggal peninjauan termutakhir
+  ditinjauList.sort((a, b) => Date.parse(b) - Date.parse(a));
+  return ditinjauList[0];
+}
+
+// 2. terbuka: elemen daftarEskalasi dengan ditinjau === null (paling banyak satu, dijaga unik oleh DB).
+function cariEskalasiTerbuka(daftar: BarisEskalasi[]): BarisEskalasi | null {
+  return daftar.find((e) => e.ditinjau === null) ?? null;
+}
+
+// 3. sesiSejakTinjau: sesi dari daftarSesi dengan mulai > tinjauTerakhir (semua sesi bila belum pernah ditinjau).
+// Perbandingan wajib menggunakan Date.parse, bukan perbandingan leksikografis string.
+function filterSesiSejakTinjau(
+  daftar: BarisSesi[],
+  tinjauTerakhir: string | null
+): BarisSesi[] {
+  if (!tinjauTerakhir) return daftar;
+  const tTinjau = Date.parse(tinjauTerakhir);
+  return daftar.filter((s) => Date.parse(s.mulai) > tTinjau);
+}
+
+// 4. titikData: sesiSejakTinjau dengan rep_terukur >= 5, urut mulai naik.
+// Definisinya HARUS sama persis dengan trigger cek_eskalasi (SPEC §8.6: sesi rep_terukur >= 5 dan mulai > v_tinjau order by mulai, id).
+function hitungTitikDataEskalasi(sesiSejak: BarisSesi[]): BarisSesi[] {
+  return sesiSejak
+    .filter((s) => s.rep_terukur >= 5)
+    .sort((a, b) => Date.parse(a.mulai) - Date.parse(b.mulai));
+}
+
+// 5. formatLabelKeputusan: pemetaan keputusan eskalasi ke label teks deskriptif Bahasa Indonesia
+function formatLabelKeputusan(k: string | null): string {
+  if (k === 'lanjutkan') return 'Lanjutkan';
+  if (k === 'ubah_resep') return 'Ubah resep';
+  if (k === 'tatap_muka') return 'Jadwalkan tatap muka';
+  return k ?? '—';
+}
+
 // Komponen bantu NFR-6: Lencana nyeri dengan ikon + label teks (tidak hanya warna)
 function renderNyeri(nyeri: number | null): React.JSX.Element {
   if (nyeri === 0) {
@@ -251,10 +298,22 @@ export default function DetailPasienPage(): React.JSX.Element {
   const [menyegarkan, setMenyegarkan] = useState(false);
   const [pasien, setPasien] = useState<PasienDetail | null>(null);
   const [daftarSesi, setDaftarSesi] = useState<BarisSesi[]>([]);
-  // Data eskalasi disimpan di state untuk digunakan pada Fase 6 (run chart eskalasi & form tinjau)
+  // Data eskalasi disimpan di state untuk Fase 6 (run chart eskalasi & form tinjau)
   const [daftarEskalasi, setDaftarEskalasi] = useState<BarisEskalasi[]>([]);
   const [prioritas, setPrioritas] = useState<PrioritasDetail | null>(null);
-  const [galat, setGalat] = useState<string | null>(null);
+  // B2: Galat dipisah antara muat awal (layar penuh) dan muat ulang senyap (banner alert tanpa me-unmount FormResep)
+  const [galatAwal, setGalatAwal] = useState<string | null>(null);
+  const [galatMuatUlang, setGalatMuatUlang] = useState<string | null>(null);
+
+  // State Fase 6: Form Tinjau & Status Tindakan
+  const [formTinjauTerbuka, setFormTinjauTerbuka] = useState(false);
+  const [keputusan, setKeputusan] = useState<
+    'lanjutkan' | 'ubah_resep' | 'tatap_muka' | ''
+  >('');
+  const [catatanTinjau, setCatatanTinjau] = useState('');
+  const [sedangTinjau, setSedangTinjau] = useState(false);
+  const [galatTinjau, setGalatTinjau] = useState<string | null>(null);
+  const [statusTinjauan, setStatusTinjauan] = useState<string | null>(null);
 
   // State bagian tautan perangkat (F03)
   const [sedangBuatKode, setSedangBuatKode] = useState(false);
@@ -277,6 +336,9 @@ export default function DetailPasienPage(): React.JSX.Element {
   const sedangProsesRef = useRef(false);
   const konfirmasiRef = useRef<HTMLDivElement | null>(null);
   const salinTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sedangTinjauRef = useRef(false);
+  const judulFormTinjauRef = useRef<HTMLHeadingElement | null>(null);
+  const statusTinjauanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Efek pelacak status mount dan pembersihan timer
   useEffect(() => {
@@ -285,6 +347,9 @@ export default function DetailPasienPage(): React.JSX.Element {
       mountedRef.current = false;
       if (salinTimeoutRef.current) {
         clearTimeout(salinTimeoutRef.current);
+      }
+      if (statusTinjauanTimeoutRef.current) {
+        clearTimeout(statusTinjauanTimeoutRef.current);
       }
     };
   }, []);
@@ -295,6 +360,13 @@ export default function DetailPasienPage(): React.JSX.Element {
       konfirmasiRef.current?.focus();
     }
   }, [konfirmasiTampil]);
+
+  // Pindahkan fokus ke judul form tinjauan saat muncul (aksesibilitas NFR-6 / SPEC §10.4)
+  useEffect(() => {
+    if (formTinjauTerbuka) {
+      judulFormTinjauRef.current?.focus();
+    }
+  }, [formTinjauTerbuka]);
 
   // 1. Guard peran fisioterapis
   useEffect(() => {
@@ -320,9 +392,9 @@ export default function DetailPasienPage(): React.JSX.Element {
     validasiPeran();
   }, [router]);
 
-  // Fungsi muat paralel (Fase 5 PLAN):
+  // Fungsi muat paralel (Fase 5 PLAN & Fase 6):
   // Muat awal (awal = true) menampilkan layar "Memuat..." penuh.
-  // Muat ulang berikutnya (awal = false, misal dari onBerhasil FormResep) senyap dengan state menyegarkan.
+  // Muat ulang berikutnya (awal = false, misal dari onBerhasil FormResep atau Tinjau) senyap dengan state menyegarkan.
   const muat = useCallback(
     async (awal: boolean = false) => {
       if (!id || !REGEX_UUID.test(id)) {
@@ -335,10 +407,11 @@ export default function DetailPasienPage(): React.JSX.Element {
 
       if (awal) {
         setSedangMuat(true);
+        setGalatAwal(null);
       } else {
         setMenyegarkan(true);
+        setGalatMuatUlang(null);
       }
-      setGalat(null);
 
       try {
         const [resPasien, resSesi, resEskalasi, resPrioritas] =
@@ -365,16 +438,26 @@ export default function DetailPasienPage(): React.JSX.Element {
 
         if (!mountedRef.current) return;
 
-        // Promise.all tidak melempar galat Supabase; periksa .error di setiap hasil
-        const errFirst =
-          resPasien.error ||
-          resSesi.error ||
-          resEskalasi.error ||
-          resPrioritas.error;
+        // B3: Galat dari v_prioritas jangan menggagalkan halaman (sudah ada fallback). Hanya console.error.
+        if (resPrioritas.error) {
+          console.error(
+            'Galat membaca v_prioritas (menggunakan fallback):',
+            resPrioritas.error
+          );
+        }
 
-        if (errFirst) {
-          console.error('Galat memuat data detail pasien:', errFirst);
-          setGalat(pesanGalat(errFirst));
+        // B2: Periksa galat pada entitas utama (pasien, sesi, eskalasi)
+        const errUtama =
+          resPasien.error || resSesi.error || resEskalasi.error;
+
+        if (errUtama) {
+          console.error('Galat memuat data detail pasien:', errUtama);
+          const pesan = pesanGalat(errUtama);
+          if (awal) {
+            setGalatAwal(pesan);
+          } else {
+            setGalatMuatUlang(pesan);
+          }
           return;
         }
 
@@ -386,7 +469,7 @@ export default function DetailPasienPage(): React.JSX.Element {
         const dataPasien = resPasien.data as PasienDetail;
         setPasien(dataPasien);
         setDaftarSesi((resSesi.data as BarisSesi[]) || []);
-        // Data eskalasi disimpan di state tetapi belum dirender pada Fase 5 (akan dipakai pada Fase 6)
+        // Data eskalasi disimpan di state untuk run chart eskalasi & form tinjau Fase 6
         setDaftarEskalasi((resEskalasi.data as BarisEskalasi[]) || []);
         setPrioritas((resPrioritas.data as PrioritasDetail) || null);
 
@@ -426,7 +509,12 @@ export default function DetailPasienPage(): React.JSX.Element {
       } catch (err: unknown) {
         if (!mountedRef.current) return;
         console.error('Galat saat memuat data:', err);
-        setGalat(pesanGalat(err as { message?: string; status?: number }));
+        const pesan = pesanGalat(err as { message?: string; status?: number });
+        if (awal) {
+          setGalatAwal(pesan);
+        } else {
+          setGalatMuatUlang(pesan);
+        }
       } finally {
         if (mountedRef.current) {
           if (awal) {
@@ -576,6 +664,85 @@ export default function DetailPasienPage(): React.JSX.Element {
     }
   }
 
+  // Handler simpan tinjauan eskalasi (Fase 6 SPEC §10.4 butir 2, PLAN §3 Fase 6)
+  async function handleSimpanTinjauan(e: React.FormEvent) {
+    e.preventDefault();
+    if (sedangTinjauRef.current || !terbuka || !peranTerapis || !keputusan)
+      return;
+    sedangTinjauRef.current = true;
+    if (!mountedRef.current) return;
+    setSedangTinjau(true);
+    setGalatTinjau(null);
+
+    try {
+      // [default spec] ditinjau memakai jam klien (new Date().toISOString()) sesuai PLAN §1.2 butir 4
+      const waktuSekarang = new Date().toISOString();
+      const catatanTrim = catatanTinjau.trim() || null;
+      const keputusanDipilih = keputusan;
+
+      const { data, error } = await supabase
+        .from('eskalasi')
+        .update({
+          ditinjau: waktuSekarang,
+          ditinjau_oleh: peranTerapis.uid,
+          keputusan: keputusanDipilih,
+          catatan: catatanTrim,
+        })
+        .eq('id', terbuka.id)
+        .is('ditinjau', null) // jangan menimpa tinjauan yang sudah terjadi di tab lain
+        .select('id');
+
+      if (!mountedRef.current) return;
+
+      if (error) {
+        setGalatTinjau(pesanGalat(error));
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        setGalatTinjau(
+          'Eskalasi sudah ditinjau atau Anda tidak berhak mengubahnya'
+        );
+        await muat(false);
+        return;
+      }
+
+      // Sukses: tutup form, bersihkan pilihan form, tampilkan status role="status"
+      setFormTinjauTerbuka(false);
+      setKeputusan('');
+      setCatatanTinjau('');
+      setStatusTinjauan('Tinjauan tersimpan');
+      if (statusTinjauanTimeoutRef.current) {
+        clearTimeout(statusTinjauanTimeoutRef.current);
+      }
+      statusTinjauanTimeoutRef.current = setTimeout(() => {
+        if (mountedRef.current) {
+          setStatusTinjauan(null);
+        }
+      }, 5000);
+
+      await muat(false);
+
+      if (keputusanDipilih === 'ubah_resep') {
+        setTimeout(() => {
+          const el = document.getElementById('judul-edit-resep');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.focus();
+          }
+        }, 100);
+      }
+    } catch (err: unknown) {
+      if (!mountedRef.current) return;
+      setGalatTinjau(pesanGalat(err as { message?: string; status?: number }));
+    } finally {
+      if (mountedRef.current) {
+        sedangTinjauRef.current = false;
+        setSedangTinjau(false);
+      }
+    }
+  }
+
   // Tampilan selama guard peran berlangsung
   if (sedangCekPeran) {
     return (
@@ -618,8 +785,8 @@ export default function DetailPasienPage(): React.JSX.Element {
     );
   }
 
-  // Galat kueri
-  if (galat) {
+  // Galat kueri awal (hanya pada muat awal penuh, B2)
+  if (galatAwal) {
     return (
       <main className="mx-auto max-w-4xl p-6">
         <div
@@ -627,7 +794,7 @@ export default function DetailPasienPage(): React.JSX.Element {
           className="rounded-xl border border-red-300 bg-red-50 p-6 text-red-900"
         >
           <h1 className="text-2xl font-bold">Terjadi Kesalahan</h1>
-          <p className="mt-2 text-lg">{galat}</p>
+          <p className="mt-2 text-lg">{galatAwal}</p>
           <div className="mt-6">
             <Link
               href="/terapis"
@@ -666,9 +833,46 @@ export default function DetailPasienPage(): React.JSX.Element {
     );
   }
 
+  // --- Perhitungan Data Fase 6: Eskalasi Terbuka, Titik Data, & Tinjauan ---
+  const tinjauTerakhir = hitungTinjauTerakhir(daftarEskalasi);
+  const terbuka = cariEskalasiTerbuka(daftarEskalasi);
+  const sesiSejakTinjau = filterSesiSejakTinjau(daftarSesi, tinjauTerakhir);
+  const titikData = hitungTitikDataEskalasi(sesiSejakTinjau);
+  const jumlahBukanTitik = sesiSejakTinjau.length - titikData.length;
+
+  // Baris eskalasi terakhir yang pernah ditinjau (untuk tampilan satu baris A4 bila tidak ada eskalasi terbuka)
+  const eskalasiTerakhirDitinjau =
+    daftarEskalasi
+      .filter((e) => e.ditinjau !== null)
+      .sort((a, b) => Date.parse(b.ditinjau!) - Date.parse(a.ditinjau!))[0] ??
+    null;
+
+  // Titik grafik run chart eskalasi (A2)
+  const titikGrafikEskalasi: TitikGrafik[] = titikData.map((s, idx) => {
+    const isCelah =
+      s.pct_terkompensasi === null ||
+      s.pct_terkompensasi === undefined ||
+      s.rep_terukur === 0;
+
+    const yVal = isCelah
+      ? null
+      : Number(Number(s.pct_terkompensasi).toFixed(1));
+    const isPemicu = Boolean(terbuka?.sesi_pemicu?.includes(s.id));
+
+    return {
+      y: yVal,
+      label: `S${idx + 1}`,
+      bentuk: 'bulat',
+      tebal: isPemicu,
+    };
+  });
+
   // --- Perhitungan Data Bagian C: Tren % Terkompensasi ---
   // Tampilkan paling banyak 30 sesi terakhir [default spec]
   const sesiTren30 = daftarSesi.slice(-30);
+  // B1: Kirim huruf P/M/R hanya bila sesiTren30.length <= 15 agar tidak bertumpuk
+  const tampilkanHurufTren = sesiTren30.length <= 15;
+
   const titikTren: TitikGrafik[] = sesiTren30.map((s) => {
     const isCelah =
       s.pct_terkompensasi === null ||
@@ -683,14 +887,14 @@ export default function DetailPasienPage(): React.JSX.Element {
 
     if (mode === 'penuh') {
       bentuk = 'bulat';
-      huruf = 'P';
+      if (tampilkanHurufTren) huruf = 'P';
     } else if (mode === 'mati') {
       bentuk = 'kotak';
-      huruf = 'M';
+      if (tampilkanHurufTren) huruf = 'M';
     } else if (mode === 'ringkasan') {
       // [default spec] Mode 'ringkasan' dipetakan ke titik bulat + huruf 'R'
       bentuk = 'bulat';
-      huruf = 'R';
+      if (tampilkanHurufTren) huruf = 'R';
     } else {
       bentuk = 'bulat';
       huruf = undefined;
@@ -721,6 +925,26 @@ export default function DetailPasienPage(): React.JSX.Element {
 
   return (
     <main className="mx-auto max-w-4xl p-6 space-y-8">
+      {/* Banner galat muat ulang senyap (B2) */}
+      {galatMuatUlang && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-300 bg-red-50 p-4 text-lg font-medium text-red-900"
+        >
+          Gagal menyegarkan data: {galatMuatUlang}
+        </div>
+      )}
+
+      {/* Banner status aksi (misal: tinjauan tersimpan) */}
+      {statusTinjauan && (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-lg font-semibold text-emerald-900"
+        >
+          ✓ {statusTinjauan}
+        </div>
+      )}
+
       {/* 1. KEPALA HALAMAN (Header) */}
       <header className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -771,8 +995,343 @@ export default function DetailPasienPage(): React.JSX.Element {
         </div>
       </header>
 
-      {/* 2. PLACEHOLDER FASE 6: Eskalasi terbuka, run chart, tabel eskalasi, tombol Tinjau */}
-      {/* Placeholder Fase 6: Eskalasi terbuka (bila ada), run chart, tabel eskalasi, tombol Tinjau */}
+      {/* 2. ESKALASI TERBUKA (SPEC §10.4 butir 2, §14 F14) */}
+      {terbuka && (
+        <section
+          aria-labelledby="judul-eskalasi-terbuka"
+          className="rounded-xl border-2 border-amber-400 bg-amber-50/50 p-6 shadow-sm space-y-6"
+        >
+          {/* Kartu peringatan dengan ikon + teks "Eskalasi terbuka" */}
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <svg
+                className="h-8 w-8 text-amber-700 shrink-0 mt-0.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <h2
+                    id="judul-eskalasi-terbuka"
+                    className="text-2xl font-bold text-amber-950"
+                  >
+                    Eskalasi terbuka
+                  </h2>
+                  <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-3 py-0.5 text-lg font-bold text-amber-900">
+                    Perlu evaluasi
+                  </span>
+                </div>
+                <p className="text-lg text-amber-900">
+                  Sistem tidak mengubah resep. Keputusan ada pada Anda.
+                </p>
+              </div>
+            </div>
+
+            {!formTinjauTerbuka && (
+              <button
+                type="button"
+                onClick={() => {
+                  setGalatTinjau(null);
+                  setFormTinjauTerbuka(true);
+                }}
+                className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-amber-600 px-8 py-4 text-xl font-bold text-white hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500 shadow-sm"
+              >
+                Tinjau
+              </button>
+            )}
+          </div>
+
+          {/* Indikator run dan median baseline */}
+          <div className="flex flex-wrap items-center gap-4 text-lg font-medium text-amber-950">
+            <div className="rounded-xl border border-amber-300 bg-amber-100/70 px-4 py-2">
+              run {terbuka.panjang_run} &gt; batas {terbuka.batas}
+            </div>
+            <div className="rounded-xl border border-amber-300 bg-amber-100/70 px-4 py-2">
+              Median baseline {Number(terbuka.median_baseline).toFixed(1)}%
+            </div>
+          </div>
+
+          {/* Form Tinjau in-page bila tombol Tinjau ditekan */}
+          {formTinjauTerbuka && (
+            <form
+              onSubmit={handleSimpanTinjauan}
+              className="rounded-xl border-2 border-amber-300 bg-white p-6 space-y-6 shadow-sm"
+            >
+              <div className="space-y-1">
+                <h3
+                  ref={judulFormTinjauRef}
+                  tabIndex={-1}
+                  className="text-2xl font-bold text-slate-900 focus-visible:outline-none"
+                >
+                  Form Tinjauan Eskalasi
+                </h3>
+                <p className="text-lg text-slate-600">
+                  Pilih keputusan klinis terhadap resep latihan pasien ini.
+                </p>
+              </div>
+
+              {galatTinjau && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-red-300 bg-red-50 p-4 text-lg font-medium text-red-900"
+                >
+                  {galatTinjau}
+                </div>
+              )}
+
+              {/* fieldset + legend Keputusan */}
+              <fieldset className="space-y-3">
+                <legend className="text-xl font-bold text-slate-900 mb-2">
+                  Keputusan
+                </legend>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Lanjutkan */}
+                  <label
+                    className={`flex min-h-[64px] cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors ${
+                      keputusan === 'lanjutkan'
+                        ? 'border-sky-700 bg-sky-50'
+                        : 'border-slate-300 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="keputusan"
+                      value="lanjutkan"
+                      checked={keputusan === 'lanjutkan'}
+                      onChange={() => setKeputusan('lanjutkan')}
+                      className="h-6 w-6 text-sky-700 focus:ring-sky-500"
+                    />
+                    <span className="text-xl font-bold text-slate-900">
+                      Lanjutkan
+                    </span>
+                  </label>
+
+                  {/* Ubah resep */}
+                  <label
+                    className={`flex min-h-[64px] cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors ${
+                      keputusan === 'ubah_resep'
+                        ? 'border-sky-700 bg-sky-50'
+                        : 'border-slate-300 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="keputusan"
+                      value="ubah_resep"
+                      checked={keputusan === 'ubah_resep'}
+                      onChange={() => setKeputusan('ubah_resep')}
+                      className="h-6 w-6 text-sky-700 focus:ring-sky-500"
+                    />
+                    <span className="text-xl font-bold text-slate-900">
+                      Ubah resep
+                    </span>
+                  </label>
+
+                  {/* Jadwalkan tatap muka */}
+                  <label
+                    className={`flex min-h-[64px] cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors ${
+                      keputusan === 'tatap_muka'
+                        ? 'border-sky-700 bg-sky-50'
+                        : 'border-slate-300 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="keputusan"
+                      value="tatap_muka"
+                      checked={keputusan === 'tatap_muka'}
+                      onChange={() => setKeputusan('tatap_muka')}
+                      className="h-6 w-6 text-sky-700 focus:ring-sky-500"
+                    />
+                    <span className="text-xl font-bold text-slate-900">
+                      Jadwalkan tatap muka
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
+
+              {/* Catatan (opsional) - [default spec] maxLength 500 */}
+              <div className="space-y-2">
+                <label
+                  htmlFor="catatan-tinjau"
+                  className="block text-lg font-semibold text-slate-800"
+                >
+                  Catatan (opsional)
+                </label>
+                <textarea
+                  id="catatan-tinjau"
+                  rows={3}
+                  maxLength={500}
+                  value={catatanTinjau}
+                  onChange={(e) => setCatatanTinjau(e.target.value)}
+                  placeholder="Tuliskan catatan observasi atau rencana tindakan bila diperlukan..."
+                  className="w-full rounded-xl border border-slate-300 p-4 text-lg text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500"
+                />
+                <p className="text-lg text-slate-500 text-right">
+                  {catatanTinjau.length} / 500 karakter
+                </p>
+              </div>
+
+              {/* Tombol Simpan & Batal */}
+              <div className="flex flex-wrap items-center gap-4 pt-2">
+                <button
+                  type="submit"
+                  disabled={sedangTinjau || !keputusan}
+                  className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-sky-700 px-8 py-4 text-xl font-bold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500 disabled:opacity-50 shadow-sm"
+                >
+                  {sedangTinjau ? 'Menyimpan...' : 'Simpan'}
+                </button>
+                <button
+                  type="button"
+                  disabled={sedangTinjau}
+                  onClick={() => {
+                    setFormTinjauTerbuka(false);
+                    setGalatTinjau(null);
+                    setKeputusan('');
+                    setCatatanTinjau('');
+                  }}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-lg font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-400 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Run chart eskalasi */}
+          <div className="rounded-xl border border-amber-200 bg-white p-5 space-y-4">
+            <Grafik
+              judul="Run chart eskalasi"
+              titik={titikGrafikEskalasi}
+              yMin={0}
+              yMaks={100}
+              satuan="%"
+              acuan={{
+                y: Number(terbuka.median_baseline),
+                label: 'Median baseline',
+              }}
+              tinggi={220}
+            />
+            {/* Teks penjelas titik tebal */}
+            <p className="text-center text-lg font-medium text-slate-700">
+              Titik tebal = sesi yang membentuk run
+            </p>
+          </div>
+
+          {/* Tabel titik data eskalasi di bawah grafik */}
+          <div className="rounded-xl border border-amber-200 bg-white p-5 space-y-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[640px]">
+                <caption className="sr-only">
+                  Tabel titik data eskalasi terbuka beserta persentase kompensasi, repetisi terukur, persentase tak terukur, status nyeri, dan penanda sesi pemicu.
+                </caption>
+                <thead>
+                  <tr className="border-b border-slate-300 bg-slate-50 text-lg font-semibold text-slate-800">
+                    <th scope="col" className="p-3">
+                      Sesi &amp; Waktu
+                    </th>
+                    <th scope="col" className="p-3">
+                      % Terkompensasi
+                    </th>
+                    <th scope="col" className="p-3">
+                      Repetisi Terukur
+                    </th>
+                    <th scope="col" className="p-3">
+                      % Tak Terukur
+                    </th>
+                    <th scope="col" className="p-3">
+                      Nyeri
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-lg text-slate-800">
+                  {titikData.map((s, idx) => {
+                    const isPemicu = Boolean(
+                      terbuka.sesi_pemicu?.includes(s.id)
+                    );
+                    const isNullKompensasi =
+                      s.pct_terkompensasi === null ||
+                      s.pct_terkompensasi === undefined ||
+                      s.rep_terukur === 0;
+                    const pctStr = isNullKompensasi
+                      ? '—'
+                      : `${Number(s.pct_terkompensasi).toFixed(1)}%`;
+                    const pctTakTerukurStr =
+                      s.pct_tak_terukur !== null &&
+                      s.pct_tak_terukur !== undefined
+                        ? `${Number(s.pct_tak_terukur).toFixed(1)}%`
+                        : '—';
+
+                    return (
+                      <tr
+                        key={s.id}
+                        className={
+                          isPemicu
+                            ? 'bg-amber-100/50 hover:bg-amber-100/80 font-medium'
+                            : 'hover:bg-slate-50/70'
+                        }
+                      >
+                        <td className="p-3 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-700">
+                              S{idx + 1}
+                            </span>
+                            <span>({formatTanggalJam(s.mulai)})</span>
+                            {isPemicu && (
+                              <span className="inline-flex items-center rounded-full border border-amber-500 bg-amber-200 px-2.5 py-0.5 text-lg font-bold text-amber-950">
+                                Pemicu
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 font-semibold">{pctStr}</td>
+                        <td className="p-3">{s.rep_terukur}</td>
+                        <td className="p-3">{pctTakTerukurStr}</td>
+                        <td className="p-3">{renderNyeri(s.nyeri)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Catatan sesi yang tidak dihitung (< 5 repetisi terukur) */}
+            {jumlahBukanTitik > 0 && (
+              <p className="text-lg text-slate-600 italic">
+                {jumlahBukanTitik} sesi &lt; 5 repetisi terukur tidak dihitung
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* A4: Satu baris kecil bila tidak ada eskalasi terbuka tetapi ada tinjauan sebelumnya [default spec] */}
+      {!terbuka && eskalasiTerakhirDitinjau && (
+        <section
+          aria-labelledby="judul-status-eskalasi"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h2 id="judul-status-eskalasi" className="sr-only">
+            Status Eskalasi Terakhir
+          </h2>
+          <p className="text-lg text-slate-700">
+            Terakhir ditinjau{' '}
+            {formatTanggalJam(eskalasiTerakhirDitinjau.ditinjau!)}:{' '}
+            <span className="font-semibold text-slate-900">
+              {formatLabelKeputusan(eskalasiTerakhirDitinjau.keputusan)}
+            </span>
+          </p>
+        </section>
+      )}
 
       {/* 3. TREN % TERKOMPENSASI PER SESI (SPEC §10.4 butir 3) */}
       <section
@@ -808,6 +1367,9 @@ export default function DetailPasienPage(): React.JSX.Element {
             {/* Legenda teks: informasi tidak boleh hanya lewat warna (NFR-6) */}
             <p className="text-center text-lg font-medium text-slate-700">
               Bulat P = Penuh · Kotak M = Mati · Bulat R = Ringkasan
+            </p>
+            <p className="text-center text-lg text-slate-600">
+              Huruf ditampilkan bila ≤ 15 sesi
             </p>
           </div>
         )}
@@ -1293,7 +1855,8 @@ export default function DetailPasienPage(): React.JSX.Element {
         <div className="space-y-1">
           <h2
             id="judul-edit-resep"
-            className="text-2xl font-bold text-slate-900"
+            tabIndex={-1}
+            className="text-2xl font-bold text-slate-900 focus-visible:outline-none"
           >
             Ubah Resep Latihan
           </h2>

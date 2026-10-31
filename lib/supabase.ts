@@ -120,6 +120,12 @@ export function pesanGalat(e: { message?: string; status?: number } | null): str
 
   const msg = e.message ?? '';
 
+  if (msg.includes('bukan_pasien_anda')) {
+    return 'Pasien ini bukan milik akun Anda.';
+  }
+  if (msg.includes('sandbox_hanya_anonim')) {
+    return 'Keluar dari akun fisioterapis dulu untuk mencoba sebagai juri';
+  }
   if (msg.includes('kode_tidak_sah')) {
     return 'Minta tautan baru ke fisioterapis';
   }

@@ -1,100 +1,77 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase, cekPeran, pesanGalat } from '../lib/supabase';
-import FormMasuk from '../components/FormMasuk';
+import { Suspense, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { pesanGalat } from '../lib/supabase';
+import { mulaiLoginGoogle } from '../lib/google';
+import AuthLayout, { IkonGoogle, useAlihkanBilaMasuk } from '../components/AuthLayout';
 
-type TampilForm = 'tidak' | 'fisioterapis';
+// Galat dari /auth/selesai datang lewat ?galat=, pesan sukses lewat ?pesan= (SPEC §10.1)
+const PESAN_URL: Record<string, string> = {
+  oauth: 'Login Google gagal, coba lagi.',
+  peran_lain: 'Akun Google ini sudah terdaftar dengan peran lain. Pakai akun Google lain untuk peran ini.',
+};
 
-export default function Page() {
-  const router  = useRouter();
-  const [tampil, setTampil]   = useState<TampilForm>('tidak');
-  const [galat, setGalat]     = useState('');
-  const [loading, setLoading] = useState(true);
+function Isi() {
+  const params = useSearchParams();
+  const memeriksa = useAlihkanBilaMasuk();
+  const [galat, setGalat] = useState('');
+  const [sibuk, setSibuk] = useState(false);
 
-  // Redirect bila sudah login
-  useEffect(() => {
-    cekPeran().then(peran => {
-      if (peran.jenis === 'terapis') router.replace('/terapis');
-      else if (peran.jenis === 'pasien') router.replace('/pasien');
-      else setLoading(false);
-    });
-  }, [router]);
+  const galatUrl = PESAN_URL[params.get('galat') ?? ''];
+  const dihapus = params.get('pesan') === 'dihapus';
 
-  async function handleJuri() {
+  async function handleGoogle() {
     setGalat('');
-    setLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        const { error } = await supabase.auth.signInAnonymously();
-        if (error) { setGalat(pesanGalat(error)); return; }
-      }
-      const { error: rpcErr } = await supabase.rpc('buat_sandbox');
-      if (rpcErr) { setGalat(pesanGalat(rpcErr)); return; }
-      router.replace('/terapis');
-    } catch {
-      setGalat('Terjadi galat, coba lagi');
-    } finally {
-      setLoading(false);
+    setSibuk(true);
+    const { error } = await mulaiLoginGoogle();
+    if (error) {
+      setGalat(pesanGalat(error));
+      setSibuk(false);
     }
   }
 
-  if (loading) {
-    return (
-      <main className="flex items-center justify-center min-h-screen">
-        <p className="text-base text-gray-500">Memuat…</p>
-      </main>
-    );
+  if (memeriksa) {
+    return <p className="rc-sub text-center" role="status">Memuat…</p>;
   }
 
   return (
-    <main className="flex flex-col items-center justify-center gap-6 min-h-screen p-6">
-      <h1 className="text-3xl font-bold text-center">ReminiCare</h1>
-      <p className="text-base text-gray-600 text-center">Aplikasi rehabilitasi fisioterapi mandiri</p>
+    <>
+      <div className="text-center">
+        <h1 className="text-4xl font-bold tracking-tight text-ink">Selamat Datang!</h1>
+        <p className="rc-sub mt-2">Masuk ke akun Google Anda untuk melanjutkan</p>
+      </div>
 
-      {galat && (
-        <div role="alert" className="w-full max-w-sm bg-red-50 border border-red-300 rounded-xl p-4 text-base text-red-700">
-          {galat}
-        </div>
-      )}
+      {dihapus && <div role="status" className="rc-ok">Data dihapus.</div>}
+      {(galatUrl || galat) && <div role="alert" className="rc-alert">{galat || galatUrl}</div>}
 
-      {tampil === 'fisioterapis' ? (
-        <div className="w-full max-w-sm flex flex-col gap-4">
-          <FormMasuk onBerhasil={() => router.replace('/terapis')} />
-          <button
-            onClick={() => { setTampil('tidak'); setGalat(''); }}
-            className="btn-sekunder text-base text-gray-600 underline focus-visible:ring-2 focus-visible:ring-gray-400 rounded"
-          >
-            Kembali
-          </button>
-        </div>
-      ) : (
-        <div className="w-full max-w-sm flex flex-col gap-4">
-          {/* Tombol utama ≥ 64px */}
-          <button
-            onClick={() => { setTampil('fisioterapis'); setGalat(''); }}
-            className="btn-utama bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            Saya fisioterapis
-          </button>
+      <div className="flex flex-col gap-3">
+        <button onClick={handleGoogle} disabled={sibuk} className="rc-btn-google">
+          <IkonGoogle />
+          {sibuk ? 'Membuka Google…' : 'Login with Google'}
+        </button>
+        <Link href="/tamu" className="rc-btn-google">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" className="text-brand-600">
+            <path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
+          </svg>
+          Masuk Sebagai Tamu
+        </Link>
+      </div>
 
-          <button
-            onClick={handleJuri}
-            className="btn-utama bg-gray-100 text-gray-800 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-          >
-            Coba sebagai juri
-          </button>
+      <p className="text-center text-base">
+        Belum Punya Akun? <Link href="/daftar" className="rc-tautan font-semibold">Buat Akun</Link>
+      </p>
+    </>
+  );
+}
 
-          <button
-            onClick={() => router.push('/tamu')}
-            className="btn-utama bg-white border border-gray-300 text-gray-800 rounded-xl hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400"
-          >
-            Mode tamu
-          </button>
-        </div>
-      )}
-    </main>
+export default function Page() {
+  return (
+    <AuthLayout>
+      <Suspense fallback={<p className="rc-sub text-center" role="status">Memuat…</p>}>
+        <Isi />
+      </Suspense>
+    </AuthLayout>
   );
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import PemicuAntrean from '../components/PemicuAntrean'
 
 export const metadata: Metadata = {
   title: 'ReminiCare',
@@ -12,9 +13,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    // NFR-6: lang="id", font dasar 18px diatur di globals.css
     <html lang="id">
       <body className="min-h-screen text-lg">
+        <PemicuAntrean />
         {children}
       </body>
     </html>

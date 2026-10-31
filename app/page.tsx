@@ -39,28 +39,28 @@ function Isi() {
   return (
     <>
       <div className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-ink">Selamat Datang!</h1>
-        <p className="rc-sub mt-2">Masuk ke akun Google Anda untuk melanjutkan</p>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">Selamat Datang!</h1>
+        <p className="mt-3 text-sm mb-5">Masuk ke akun Google Anda untuk melanjutkan</p>
       </div>
 
       {dihapus && <div role="status" className="rc-ok">Data dihapus.</div>}
       {(galatUrl || galat) && <div role="alert" className="rc-alert">{galat || galatUrl}</div>}
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <button onClick={handleGoogle} disabled={sibuk} className="rc-btn-google">
           <IkonGoogle />
           {sibuk ? 'Membuka Google…' : 'Login with Google'}
         </button>
         <Link href="/tamu" className="rc-btn-google">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" className="text-brand-600">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" className="text-brand-600">
             <path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
           </svg>
           Masuk Sebagai Tamu
         </Link>
       </div>
 
-      <p className="text-center text-base">
-        Belum Punya Akun? <Link href="/daftar" className="rc-tautan font-semibold">Buat Akun</Link>
+      <p className="text-center text-sm">
+        Belum Punya Akun? <Link href="/daftar" className="rc-tautan text-sm! font-semibold">Buat Akun</Link>
       </p>
     </>
   );

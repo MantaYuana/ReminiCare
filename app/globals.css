@@ -92,11 +92,11 @@ body {
          hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
-/* Tombol Google / tamu: putih berbingkai, ≥ 56px */
+/* Tombol Google / tamu: putih, bingkai hitam 30%, ≥ 44px */
 .rc-btn-google {
-  @apply inline-flex items-center justify-center gap-3 min-h-[56px] w-full px-5 py-2 rounded-xl text-base font-medium
-         bg-white text-ink border border-slate-300 transition-colors
-         hover:bg-brand-50 hover:border-brand-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:border-slate-300;
+  @apply inline-flex items-center justify-center gap-2 min-h-[44px] w-full px-4 py-1.5 rounded-sm text-sm font-medium
+         bg-white text-ink border border-black/30 transition-colors
+         hover:bg-brand-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white;
 }
 
 .rc-btn-bahaya {

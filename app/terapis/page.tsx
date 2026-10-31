@@ -153,23 +153,6 @@ export default function DasborTerapisPage() {
   return (
     <main className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 text-lg">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Spanduk Sandbox Juri */}
-        {peranTerapis?.demo && (
-          <aside
-            role="region"
-            aria-label="Informasi Sandbox Juri"
-            className="p-4 bg-purple-50 border-2 border-purple-400 text-purple-950 rounded-2xl flex items-center gap-3 shadow-sm"
-          >
-            <span aria-hidden="true" className="text-2xl font-bold">🧪</span>
-            <div>
-              <p className="font-bold text-xl">Sandbox Juri</p>
-              <p className="text-lg text-purple-900">
-                Anda masuk sebagai Terapis Demo dengan data 5 pasien sintetis (Pak Wayan, Bu Made, Pak Nyoman, Bu Ketut, Pak Komang). Data ini aman diuji dan tidak memengaruhi pasien klinis nyata.
-              </p>
-            </div>
-          </aside>
-        )}
-
         {/* Baris Identitas & Navigasi Atas */}
         <header className="bg-white p-6 border border-gray-200 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>

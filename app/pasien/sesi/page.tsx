@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase, cekPeran } from '../../../lib/supabase';
 import { bacaResep } from '../../../lib/lokal';
 import { suara } from '../../../lib/suara';
@@ -13,7 +13,6 @@ type ResepDenganSisi = ResepSalinan & { sisi: Sisi };
 
 function KontenSesi() {
   const router       = useRouter();
-  const params       = useSearchParams();
   const [resep, setResep]     = useState<ResepDenganSisi | null>(null);
   const [pasienId, setPasienId] = useState<string | undefined>();
   const [kembali, setKembali]  = useState('/pasien');
@@ -23,35 +22,6 @@ function KontenSesi() {
   useEffect(() => {
     async function muat() {
       const peran = await cekPeran();
-
-      // Terapis demo: ?pasien=<id>
-      const idParam = params.get('pasien');
-      if (idParam && peran.jenis === 'terapis' && peran.demo) {
-        const { data } = await supabase
-          .from('pasien')
-          .select('id, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong, kandidat_condong, suara_condong, ambang_versi')
-          .eq('id', idParam)
-          .maybeSingle();
-        if (!data) { router.replace('/terapis'); return; }
-        setResep({
-          sisi: data.sisi_terdampak,
-          gerakan: data.gerakan,
-          repetisi: data.repetisi,
-          sesi_per_minggu: data.sesi_per_minggu,
-          toleransi_batang: data.toleransi_batang,
-          toleransi_bahu: data.toleransi_bahu,
-          durasi_persen: data.durasi_persen,
-          mode_koreksi: data.mode_koreksi,
-          kalimat_condong: data.kalimat_condong,
-          kandidat_condong: data.kandidat_condong,
-          suara_condong: data.suara_condong,
-          ambang_versi: data.ambang_versi ?? 'v1',
-        });
-        setPasienId(idParam);
-        setKembali(`/terapis/pasien/${idParam}`);
-        setLoading(false);
-        return;
-      }
 
       // Pasien biasa
       if (peran.jenis === 'pasien') {
@@ -107,7 +77,7 @@ function KontenSesi() {
     }
 
     muat();
-  }, [router, params]);
+  }, [router]);
 
   if (loading) {
     return (

@@ -43,7 +43,7 @@ describe('ruteUntuk', () => {
     assert.equal(ruteUntuk({ jenis: 'pasien', uid: 'u', pasienId: 'p' }, null), '/pasien');
     assert.equal(ruteUntuk({ jenis: 'pasien_baru', uid: 'u' }, null), '/pasien');
     assert.equal(ruteUntuk({ jenis: 'luring', uid: 'u' }, null), '/pasien');
-    assert.equal(ruteUntuk({ jenis: 'luring' }, null), null, 'luring tanpa sesi tetap di halaman masuk');
+    assert.equal(ruteUntuk({ jenis: 'luring' }, null), '/pasien', 'luring tanpa uid = refresh token gagal karena luring');
     assert.equal(ruteUntuk({ jenis: 'tanpa_peran', uid: 'u' }, null), null);
     assert.equal(ruteUntuk({ jenis: 'keluar' }, null), null);
   });

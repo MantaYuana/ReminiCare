@@ -82,6 +82,7 @@ type ItemAntrean = {
 
 function buatSingleton(): Suara {
   let _jalur: 'webspeech' | 'klip' | null = null;
+  let _membuka: Promise<void> | null = null;
   let _ctx: AudioContext | null = null;
   let _klip: Map<string, AudioBuffer> = new Map();
   let _suaraIdx = -1;
@@ -161,67 +162,75 @@ function buatSingleton(): Suara {
     }
   }
 
+  // Pembukaan audio pertama; buka() membagikan janjinya ke ketukan berikutnya
+  async function bukaSekali(): Promise<void> {
+    // 1. Buka AudioContext
+    _ctx = new AudioContext();
+    await _ctx.resume();
+
+    // 2. Deteksi apakah iOS
+    const ios = adalahIOS({
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+    });
+
+    // 3. Coba Web Speech (hanya non-iOS)
+    if (!ios && typeof globalThis.speechSynthesis !== 'undefined') {
+      let voices = globalThis.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        voices = await new Promise<SpeechSynthesisVoice[]>((res) => {
+          const t = setTimeout(() => res([]), 1000);
+          globalThis.speechSynthesis.onvoiceschanged = () => {
+            clearTimeout(t);
+            res(globalThis.speechSynthesis.getVoices());
+          };
+        });
+      }
+
+      const idx = pilihSuara(voices.map(v => ({ lang: v.lang, localService: v.localService })));
+      if (idx >= 0) {
+        // 4. Test apakah Web Speech mau start dalam 500 ms
+        _suaraIdx = idx;
+        const berhasil = await new Promise<boolean>((res) => {
+          const u = new SpeechSynthesisUtterance(NASKAH['I-MULAI'] ?? 'mulai');
+          _utterance = u;
+          u.voice = voices[idx];
+          u.lang = voices[idx].lang;
+          const t = setTimeout(() => {
+            globalThis.speechSynthesis.cancel();
+            res(false);
+          }, 500);
+          u.onstart = () => { clearTimeout(t); res(true); };
+          u.onerror = () => { clearTimeout(t); res(false); };
+          globalThis.speechSynthesis.speak(u);
+        });
+
+        if (berhasil) {
+          _jalur = 'webspeech';
+          return;
+        }
+        globalThis.speechSynthesis.cancel();
+      }
+    }
+
+    // 5. Jalur klip: unduh semua MP3
+    _jalur = 'klip';
+    await unduhSemua();
+    // Putar I-MULAI untuk konfirmasi audio
+    await mainKlip('I-MULAI');
+  }
+
   return {
     get jalur() { return _jalur; },
 
-    async buka(): Promise<void> {
-      if (_jalur !== null) return;
-
-      // 1. Buka AudioContext
-      _ctx = new AudioContext();
-      await _ctx.resume();
-
-      // 2. Deteksi apakah iOS
-      const ios = adalahIOS({
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        maxTouchPoints: navigator.maxTouchPoints,
-      });
-
-      // 3. Coba Web Speech (hanya non-iOS)
-      if (!ios && typeof globalThis.speechSynthesis !== 'undefined') {
-        let voices = globalThis.speechSynthesis.getVoices();
-        if (voices.length === 0) {
-          voices = await new Promise<SpeechSynthesisVoice[]>((res) => {
-            const t = setTimeout(() => res([]), 1000);
-            globalThis.speechSynthesis.onvoiceschanged = () => {
-              clearTimeout(t);
-              res(globalThis.speechSynthesis.getVoices());
-            };
-          });
-        }
-
-        const idx = pilihSuara(voices.map(v => ({ lang: v.lang, localService: v.localService })));
-        if (idx >= 0) {
-          // 4. Test apakah Web Speech mau start dalam 500 ms
-          _suaraIdx = idx;
-          const berhasil = await new Promise<boolean>((res) => {
-            const u = new SpeechSynthesisUtterance(NASKAH['I-MULAI'] ?? 'mulai');
-            _utterance = u;
-            u.voice = voices[idx];
-            u.lang = voices[idx].lang;
-            const t = setTimeout(() => {
-              globalThis.speechSynthesis.cancel();
-              res(false);
-            }, 500);
-            u.onstart = () => { clearTimeout(t); res(true); };
-            u.onerror = () => { clearTimeout(t); res(false); };
-            globalThis.speechSynthesis.speak(u);
-          });
-
-          if (berhasil) {
-            _jalur = 'webspeech';
-            return;
-          }
-          globalThis.speechSynthesis.cancel();
-        }
-      }
-
-      // 5. Jalur klip: unduh semua MP3
-      _jalur = 'klip';
-      await unduhSemua();
-      // Putar I-MULAI untuk konfirmasi audio
-      await mainKlip('I-MULAI');
+    buka(): Promise<void> {
+      // Ketukan kedua saat pembukaan pertama belum selesai menunggu janji yang sama:
+      // satu AudioContext, satu unduhan klip, satu I-MULAI
+      if (_membuka) return _membuka;
+      if (_jalur !== null) return Promise.resolve();
+      _membuka = bukaSekali().finally(() => { _membuka = null; });
+      return _membuka;
     },
 
     ucap(kode, opsi = {}): Promise<{ tMulai: number }> {

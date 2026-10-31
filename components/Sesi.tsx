@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { ResepSalinan } from '../lib/kinematik/mesin.ts';
 import { buatMesin, agregatSesi } from '../lib/kinematik/mesin.ts';
 import type { Sisi, EventMesin, Baseline, KonfigSesi, FrameMentah } from '../lib/kinematik/tipe.ts';
-import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI, ISTIRAHAT_MS, GATING } from '../lib/kinematik/tipe.ts';
+import { ISTIRAHAT_MS, GATING } from '../lib/kinematik/tipe.ts';
 import { buatPemantau, kalibrasi } from '../lib/kinematik/fitur.ts';
 import { mulaiPose } from '../lib/pose.ts';
 import { mulaiLayar, langkah, buatJuruSuara } from '../lib/sesi-state.ts';
@@ -34,7 +34,7 @@ export interface PropsSesi {
   simpan: boolean;
   tamu?: boolean;
   kembali: string;
-  /** Dipanggil saat "Selesai" ditekan; bila ada menggantikan router.push(kembali). */
+  /** Dipanggil di setiap jalan keluar (Selesai, Berhenti, Kembali, Beranda); bila ada menggantikan router.push(kembali). */
   onSelesai?: () => void;
 }
 
@@ -77,18 +77,27 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   resepRef.current = resep;
   const kembaliRef = useRef(kembali);
   kembaliRef.current = kembali;
+  const selesaiRef = useRef(onSelesai);
+  selesaiRef.current = onSelesai;
+  const tSkorRef = useRef(0);
+
+  // Semua jalan keluar lewat sini: di /tamu, router.push('/tamu') ke halaman yang sama tidak berbuat apa-apa
+  const keluar = useCallback(() => {
+    if (selesaiRef.current) selesaiRef.current();
+    else router.push(kembaliRef.current);
+  }, [router]);
 
   // ── Reducer helper ───────────────────────────────────────────────────────
 
   const kirimAksi = useCallback((a: Aksi) => {
-    const { layar: baru, keluar } = langkah(layarRef.current, a, resepRef.current);
-    if (keluar) {
-      router.push(kembaliRef.current);   // Berhenti sebelum ada repetisi: tidak menyimpan apa pun
+    const { layar: baru, keluar: harusKeluar } = langkah(layarRef.current, a, resepRef.current);
+    if (harusKeluar) {
+      keluar();                          // Berhenti sebelum ada repetisi: tidak menyimpan apa pun
       return;
     }
     layarRef.current = baru;             // langsung, supaya beberapa event dalam satu frame berurutan
     setLayar(baru);
-  }, [router]);
+  }, [keluar]);
 
   // ── Handler event mesin ──────────────────────────────────────────────────
 
@@ -96,7 +105,11 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     const klip = juruSuara.current(e, Date.now());
     for (const k of klip) suara.ucap(k.kode, { prioritas: k.prioritas });
 
-    if (e.jenis === 'sampel') setSkor(e.skor);
+    // skor tiap frame; 4 Hz cukup untuk angka keyakinan, tanpa render ulang sebanyak frame kamera
+    if (e.jenis === 'sampel' && e.t - tSkorRef.current >= 250) {
+      tSkorRef.current = e.t;
+      setSkor(e.skor);
+    }
     if (e.jenis === 'gating') setGating(e.aktif);
     if (e.jenis === 'repetisi') kirimAksi({ t: 'repetisi', hitungan: e.hitungan });
   }, [kirimAksi]);
@@ -129,7 +142,6 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       const { gating: g, skor: sk, diDalam: dd } = pemantauRef.current.dorong(f);
       // gating baru aktif setelah 1 dtk buruk; frame buruk saat ini juga menahan tombol Siap (F05)
       setGating(g || !dd || sk < GATING.masuk);
-      setSkor(sk);
     } else if (l.nama === 'kalibrasi') {
       kalibFramesRef.current.push(f);
     } else if (l.nama === 'gerakan') {
@@ -142,8 +154,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
           tolBahu: r.toleransi_bahu,
           mode: r.mode_koreksi,
           kalimat: r.kalimat_condong,
-          kandidat: tamu ? 'a' : KANDIDAT_CONDONG,
-          suaraCondong: SUARA_CONDONG,
+          kandidat: r.kandidat_condong,
+          suaraCondong: r.suara_condong,
         };
         const m = buatMesin(konfig, baselineRef.current);
         m.mulaiGerakan(r.gerakan[l.gerakanKe] ?? 'jangkau_depan');
@@ -153,7 +165,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
         for (const e of mesinRef.current.dorong(f)) tangani(e);
       }
     }
-  }, [tamu, tangani]);
+  }, [tangani]);
 
   // ── Setup kamera + PoseLandmarker (sekali per sesi; ulang saat "Coba lagi") ─
 
@@ -276,12 +288,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       pasienId: pasienId ?? 'tamu',
       mulai: new Date(mulaiMs.current).toISOString(),
       selesai: new Date().toISOString(),
-      resep: {
-        ...resep,
-        kandidat_condong: tamu ? 'a' : KANDIDAT_CONDONG,
-        suara_condong: SUARA_CONDONG,
-        ambang_versi: AMBANG_VERSI,
-      },
+      resep,
       baseline: baselineRef.current,
       hasil: hasilSemua,
       fpsMedian,
@@ -295,8 +302,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     setRingkas({ total: barisSesi.rep_total, benar, pct });
 
     if (simpan && pasienId) {
-      sesiIdRef.current = id;
       if (tambah({ jenis: 'sesi', baris: barisSesi })) {
+        sesiIdRef.current = id;
         kirim();
       } else {
         setPesanSimpan('Memori ponsel penuh, sesi ini tidak tersimpan.');
@@ -309,7 +316,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       });
       setRiwayat(bacaRiwayat(pasienId));
     }
-  }, [layar.nama, simpan, pasienId, resep, tamu]);
+  }, [layar.nama, simpan, pasienId, resep]);
 
   // ── Handler tombol nyeri ─────────────────────────────────────────────────
 
@@ -319,16 +326,11 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     setNyeriSudahDipilih(true);
   }
 
-  function handleSelesai() {
-    if (onSelesai) onSelesai();
-    else router.push(kembali);
-  }
-
   // ── Render ───────────────────────────────────────────────────────────────
 
   const kamera = layar.nama === 'panduan' || layar.nama === 'kalibrasi';
   const menuAtas: ItemNav[] = [
-    { label: 'Beranda', ikon: <IkonBeranda />, href: kembali },
+    { label: 'Beranda', ikon: <IkonBeranda />, onClick: keluar },
     { label: 'Semua Latihan', ikon: <IkonLatihan />, nonaktif: true },
     { label: 'Chat', ikon: <IkonChat />, nonaktif: true },
   ];
@@ -399,7 +401,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
                 >
                   Coba lagi
                 </button>
-                <button onClick={() => router.push(kembali)} className="rc-btn-2 flex-1">
+                <button onClick={keluar} className="rc-btn-2 flex-1">
                   Kembali
                 </button>
               </div>
@@ -450,7 +452,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
           pesanSimpan={pesanSimpan}
           nyeriSudahDipilih={nyeriSudahDipilih}
           onNyeri={!tamu ? handleNyeri : undefined}
-          onSelesai={handleSelesai}
+          onSelesai={keluar}
         />
       )}
     </DashboardShell>

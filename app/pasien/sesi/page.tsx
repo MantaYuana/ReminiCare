@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, cekPeran } from '../../../lib/supabase';
-import { bacaResep } from '../../../lib/lokal';
+import { bacaResep, simpanResep, keResepLokal, KOLOM_RESEP } from '../../../lib/lokal';
+import type { ResepLokal } from '../../../lib/lokal';
 import Sesi from '../../../components/Sesi';
 import type { ResepSalinan } from '../../../lib/kinematik/mesin';
 import type { Sisi } from '../../../lib/kinematik/tipe';
@@ -11,8 +12,22 @@ import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI } from '../../../lib/kine
 
 type ResepDenganSisi = ResepSalinan & { sisi: Sisi };
 
-const KOLOM_RESEP =
-  'id, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong';
+function keResepSesi(r: ResepLokal): ResepDenganSisi {
+  return {
+    sisi: r.sisi_terdampak,
+    gerakan: r.gerakan,
+    repetisi: r.repetisi,
+    sesi_per_minggu: r.sesi_per_minggu,
+    toleransi_batang: r.toleransi_batang,
+    toleransi_bahu: r.toleransi_bahu,
+    durasi_persen: r.durasi_persen,
+    mode_koreksi: r.mode_koreksi,
+    kalimat_condong: r.kalimat_condong,
+    kandidat_condong: KANDIDAT_CONDONG,
+    suara_condong: SUARA_CONDONG,
+    ambang_versi: AMBANG_VERSI,
+  };
+}
 
 export default function Page() {
   const router = useRouter();
@@ -22,57 +37,39 @@ export default function Page() {
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
+    function pakai(r: ResepLokal) {
+      setResep(keResepSesi(r));
+      setPasienId(r.pasien_id);
+      setLoading(false);
+    }
+
     async function muat() {
       const peran = await cekPeran();
+      let pasienLokal: string | undefined;
 
       // Daring: resep dari baris pasien yang terikat ke akun ini
       if (peran.jenis === 'pasien') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('pasien')
           .select(KOLOM_RESEP)
           .eq('id', peran.pasienId)
           .maybeSingle();
         if (data) {
-          setResep({
-            sisi: data.sisi_terdampak,
-            gerakan: data.gerakan,
-            repetisi: data.repetisi,
-            sesi_per_minggu: data.sesi_per_minggu,
-            toleransi_batang: data.toleransi_batang,
-            toleransi_bahu: data.toleransi_bahu,
-            durasi_persen: data.durasi_persen,
-            mode_koreksi: data.mode_koreksi,
-            kalimat_condong: data.kalimat_condong,
-            kandidat_condong: KANDIDAT_CONDONG,
-            suara_condong: SUARA_CONDONG,
-            ambang_versi: AMBANG_VERSI,
-          });
-          setPasienId(peran.pasienId);
-          setLoading(false);
+          const lokal = keResepLokal(data);
+          simpanResep(lokal);
+          pakai(lokal);
           return;
         }
+        // Tanpa galat = baris sudah tidak terikat: kembali ke beranda
+        if (!error) { router.replace('/pasien'); return; }
+        pasienLokal = peran.pasienId;   // jaringan putus sesaat: lanjut dengan resep di perangkat
       }
 
-      // Luring: resep tersimpan di perangkat
-      if (peran.jenis === 'luring') {
+      // Luring (atau query di atas gagal): resep tersimpan di perangkat
+      if (peran.jenis === 'luring' || pasienLokal) {
         const lokal = bacaResep();
-        if (lokal) {
-          setResep({
-            sisi: lokal.sisi_terdampak,
-            gerakan: lokal.gerakan,
-            repetisi: lokal.repetisi,
-            sesi_per_minggu: lokal.sesi_per_minggu,
-            toleransi_batang: lokal.toleransi_batang,
-            toleransi_bahu: lokal.toleransi_bahu,
-            durasi_persen: lokal.durasi_persen,
-            mode_koreksi: lokal.mode_koreksi,
-            kalimat_condong: lokal.kalimat_condong,
-            kandidat_condong: KANDIDAT_CONDONG,
-            suara_condong: SUARA_CONDONG,
-            ambang_versi: AMBANG_VERSI,
-          });
-          setPasienId(lokal.pasien_id);
-          setLoading(false);
+        if (lokal && (!pasienLokal || lokal.pasien_id === pasienLokal)) {
+          pakai(lokal);
           return;
         }
         setGalat('Resep belum tersimpan di ponsel ini. Sambungkan ke internet sekali untuk memuat resep.');

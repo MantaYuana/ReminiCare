@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase, cekPeran, pesanGalat } from '../../lib/supabase';
-import { bacaResep, simpanResep, bacaRiwayat, hapus } from '../../lib/lokal';
-import type { Riwayat } from '../../lib/lokal';
+import { bacaResep, simpanResep, bacaRiwayat, hapus, keResepLokal, KOLOM_RESEP } from '../../lib/lokal';
+import type { Riwayat, ResepLokal } from '../../lib/lokal';
 import { jumlahSesi } from '../../lib/antrean';
 import { normalKode } from '../../lib/arah';
 import { suara } from '../../lib/suara';
@@ -16,9 +16,6 @@ import PanelFisioterapis from '../../components/PanelFisioterapis';
 import PindaiQR from '../../components/PindaiQR';
 import DaftarLatihan, { KartuLatihan } from '../../components/DaftarLatihan';
 import { IkonBeranda, IkonLatihan, IkonChat, IkonPengaturan, IkonKeluar, IkonHapus } from '../../components/ikon';
-
-const KOLOM_RESEP =
-  'dibuat, nama_panggilan, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong';
 
 type Keadaan = 'memuat' | 'terikat' | 'belum_ada_resep';
 type RingkasResep = { gerakan: string[]; repetisi: number; sisi: 'kiri' | 'kanan'; dibuat?: string };
@@ -42,55 +39,45 @@ export default function Page() {
   const [galatKode, setGalatKode]         = useState('');
 
   useEffect(() => {
-    function muatRiwayat(pasienId: string) {
-      setRiwayat(bacaRiwayat(pasienId));
+    function tampilkan(r: ResepLokal, dibuat?: string) {
+      setNama(r.nama_panggilan ?? '');
+      setSesiPerMinggu(r.sesi_per_minggu ?? 3);
+      setResep({ gerakan: r.gerakan, repetisi: r.repetisi, sisi: r.sisi_terdampak, dibuat });
+      setRiwayat(bacaRiwayat(r.pasien_id));
+      setKeadaan('terikat');
+    }
+
+    // Luring, atau query resep gagal: pakai rc_resep (bila pasienId diketahui, harus milik pasien itu)
+    function muatLokal(pasienId?: string) {
+      const lokal = bacaResep();
+      if (lokal && (!pasienId || lokal.pasien_id === pasienId)) { tampilkan(lokal); return; }
+      setGalat('Butuh internet sekali untuk memuat resep.');
+      setKeadaan('belum_ada_resep');
     }
 
     async function muat() {
       const peran = await cekPeran();
 
       if (peran.jenis === 'pasien') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('pasien')
-          .select(KOLOM_RESEP)
+          .select(`${KOLOM_RESEP}, dibuat`)
           .eq('id', peran.pasienId)
           .maybeSingle();
         if (data) {
-          setNama(data.nama_panggilan ?? '');
-          setSesiPerMinggu(data.sesi_per_minggu ?? 3);
-          setResep({ gerakan: data.gerakan, repetisi: data.repetisi, sisi: data.sisi_terdampak, dibuat: data.dibuat });
-          simpanResep({
-            pasien_id: peran.pasienId,
-            nama_panggilan: data.nama_panggilan,
-            sisi_terdampak: data.sisi_terdampak,
-            gerakan: data.gerakan,
-            repetisi: data.repetisi,
-            sesi_per_minggu: data.sesi_per_minggu,
-            toleransi_batang: data.toleransi_batang,
-            toleransi_bahu: data.toleransi_bahu,
-            durasi_persen: data.durasi_persen,
-            mode_koreksi: data.mode_koreksi,
-            kalimat_condong: data.kalimat_condong,
-          });
-          muatRiwayat(peran.pasienId);
-          setKeadaan('terikat');
+          const lokal = keResepLokal(data);
+          simpanResep(lokal);
+          tampilkan(lokal, data.dibuat);
+        } else if (error) {
+          // jaringan putus sesaat: rc_resep jangan dihapus, latihan luring tetap bisa jalan
+          muatLokal(peran.pasienId);
         } else {
-          // Baris pasien hilang (mis. fisioterapis mengatur ulang data contoh)
+          // Baris pasien hilang di antara cekPeran dan query ini
           hapus('rc_resep');
           setKeadaan('belum_ada_resep');
         }
       } else if (peran.jenis === 'luring') {
-        const lokal = bacaResep();
-        if (!lokal) {
-          setGalat('Butuh internet sekali untuk memuat resep.');
-          setKeadaan('belum_ada_resep');
-        } else {
-          setNama(lokal.nama_panggilan ?? '');
-          setSesiPerMinggu(lokal.sesi_per_minggu ?? 3);
-          setResep({ gerakan: lokal.gerakan, repetisi: lokal.repetisi, sisi: lokal.sisi_terdampak });
-          muatRiwayat(lokal.pasien_id);
-          setKeadaan('terikat');
-        }
+        muatLokal();
       } else if (peran.jenis === 'pasien_baru') {
         hapus('rc_resep');
         setKeadaan('belum_ada_resep');
@@ -152,7 +139,9 @@ export default function Page() {
   }
 
   async function handleKeluar() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    // Luring: signOut gagal dan sesi tetap tersimpan, jadi rc_resep juga jangan dihapus
+    if (error) { setGalat('Butuh internet untuk keluar. Sambungkan ke internet lalu coba lagi.'); return; }
     hapus('rc_resep');
     router.replace('/');
   }

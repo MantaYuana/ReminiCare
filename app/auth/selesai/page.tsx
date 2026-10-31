@@ -38,7 +38,9 @@ function Isi() {
         if (error) {
           if (error.message?.includes('peran_lain')) {
             await supabase.auth.signOut();
-            router.replace('/?galat=peran_lain');
+            // Dari tautan klaim: kembali ke /k supaya pasien bisa pilih akun lain tanpa memindai ulang QR
+            const tujuan = lanjutAman(lanjut);
+            router.replace(tujuan?.startsWith('/k/') ? `${tujuan}?galat=peran_lain` : '/?galat=peran_lain');
           } else {
             setGalat(pesanGalat(error));
             setTampil('galat');

@@ -615,7 +615,7 @@ export default function DetailPasienPage(): React.JSX.Element {
       setTanggalKedaluwarsa(tglKedaluwarsaStr);
       setStatusSalin('idle');
 
-      // Perbarui juga data pasien lokal (user_id di-set null karena perangkat lama dilepas oleh buat_kode)
+      // Perbarui juga data pasien lokal (user_id di-set null karena akun lama dilepas oleh buat_kode)
       setPasien((prev) =>
         prev
           ? {
@@ -1914,7 +1914,7 @@ export default function DetailPasienPage(): React.JSX.Element {
                 </h3>
                 <p className="text-lg text-amber-900">
                   Membuat tautan baru membatalkan tautan lama dan melepas
-                  perangkat lama. Lanjutkan?
+                  akun lama. Lanjutkan?
                 </p>
               </div>
             </div>
@@ -2059,7 +2059,7 @@ export default function DetailPasienPage(): React.JSX.Element {
                 {/* Peringatan Persis sesuai Spec */}
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
                   <p className="text-lg font-medium text-amber-950">
-                    Kode lama dibatalkan dan perangkat lama dilepas.
+                    Kode lama dibatalkan dan akun lama dilepas.
                   </p>
                 </div>
               </div>

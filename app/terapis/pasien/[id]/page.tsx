@@ -1,25 +1,38 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import * as QRCode from 'qrcode';
-import { supabase, cekPeran, pesanGalat, type Peran } from '../../../../lib/supabase';
+import {
+  supabase,
+  cekPeran,
+  pesanGalat,
+  type Peran,
+} from '../../../../lib/supabase';
+import Grafik, { type TitikGrafik } from '../../../../components/Grafik';
+import FormResep, {
+  type SisiTerdampak,
+  type JenisGerakan,
+  type TingkatToleransi,
+  type ModeKoreksiResep,
+  type PilihanKalimatCondong,
+} from '../../../../components/FormResep';
 
 interface PasienDetail {
   id: string;
   terapis_id: string;
   user_id: string | null;
   nama_panggilan: string;
-  sisi_terdampak: 'kiri' | 'kanan';
-  gerakan: string[];
+  sisi_terdampak: SisiTerdampak;
+  gerakan: JenisGerakan[];
   repetisi: number;
   sesi_per_minggu: number;
-  toleransi_batang: string;
-  toleransi_bahu: string;
+  toleransi_batang: TingkatToleransi;
+  toleransi_bahu: TingkatToleransi;
   durasi_persen: number;
-  mode_koreksi: string;
-  kalimat_condong: string;
+  mode_koreksi: ModeKoreksiResep;
+  kalimat_condong: PilihanKalimatCondong;
   kode_klaim: string | null;
   kode_kedaluwarsa: string | null;
   persetujuan_versi: string | null;
@@ -27,10 +40,193 @@ interface PasienDetail {
   persetujuan_oleh: string | null;
   is_sintetis: boolean;
   dibuat: string;
+  [key: string]: unknown;
+}
+
+interface PerGerakanDetail {
+  rep_total?: number;
+  rep_terukur?: number;
+  rep_terkompensasi?: number;
+  per_penanda?: {
+    batang?: number;
+    bahu?: number;
+  };
+  waktu_gerak_median?: number | null;
+  v_puncak_median?: number | null;
+  n_puncak_median?: number | null;
+}
+
+interface BarisSesi {
+  id: string;
+  mulai: string;
+  resep: {
+    mode_koreksi?: string;
+    [key: string]: unknown;
+  } | null;
+  rep_total: number;
+  rep_terukur: number;
+  rep_terkompensasi: number;
+  pct_terkompensasi: number | string | null;
+  per_gerakan: Record<string, PerGerakanDetail> | null;
+  pct_tak_terukur: number | string | null;
+  nyeri: number | null;
+  is_sintetis: boolean;
+}
+
+interface BarisEskalasi {
+  id: string;
+  pasien_id: string;
+  dibuka: string;
+  sesi_pemicu: string[];
+  median_baseline: number;
+  panjang_run: number;
+  batas: number;
+  ditinjau: string | null;
+  ditinjau_oleh: string | null;
+  keputusan: string | null;
+  catatan: string | null;
+}
+
+interface PrioritasDetail {
+  sesi_7_hari: number | null;
+  sesi_per_minggu: number | null;
 }
 
 const REGEX_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Fungsi bantu murni di luar komponen (format tanggal pendek id-ID untuk label sumbu x grafik)
+function formatTanggalPendek(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+// Fungsi bantu murni di luar komponen (format tanggal lengkap beserta jam id-ID)
+function formatTanggalJam(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const tgl = d.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    const jam = d.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return `${tgl}, ${jam}`;
+  } catch {
+    return iso;
+  }
+}
+
+// Fungsi bantu murni untuk label tampilan gerakan
+function labelGerakan(g: string): string {
+  if (g === 'jangkau_depan') return 'Jangkau depan';
+  if (g === 'jangkau_samping') return 'Jangkau samping';
+  return g.replace(/_/g, ' ');
+}
+
+// Komponen bantu NFR-6: Lencana nyeri dengan ikon + label teks (tidak hanya warna)
+function renderNyeri(nyeri: number | null): React.JSX.Element {
+  if (nyeri === 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-medium text-emerald-800">
+        <svg
+          className="h-5 w-5 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" strokeWidth="2" />
+          <path
+            strokeLinecap="round"
+            strokeWidth="2"
+            d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 005 0"
+          />
+        </svg>
+        <span>Tidak nyeri</span>
+      </span>
+    );
+  }
+  if (nyeri === 1) {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-medium text-amber-800">
+        <svg
+          className="h-5 w-5 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" strokeWidth="2" />
+          <path strokeLinecap="round" strokeWidth="2" d="M9 10h.01M15 10h.01M9 15h6" />
+        </svg>
+        <span>Agak nyeri</span>
+      </span>
+    );
+  }
+  if (nyeri === 2) {
+    return (
+      <span className="inline-flex items-center gap-1.5 font-bold text-red-800">
+        <svg
+          className="h-5 w-5 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" strokeWidth="2" />
+          <path
+            strokeLinecap="round"
+            strokeWidth="2"
+            d="M9 10h.01M15 10h.01M14.5 15.5a3.5 3.5 0 00-5 0"
+          />
+        </svg>
+        <span>Nyeri</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-slate-500">
+      <span>— Belum diisi</span>
+    </span>
+  );
+}
+
+// Komponen bantu NFR-6: Lencana sesi sintetis dengan ikon + label teks
+function renderLencanaSintetis(isSintetis: boolean): React.JSX.Element {
+  if (!isSintetis) {
+    return <span className="text-slate-400">—</span>;
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-300 bg-purple-100 px-3 py-1 font-semibold text-purple-800">
+      <svg
+        className="h-4 w-4 shrink-0"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+        />
+      </svg>
+      <span>Sintetis</span>
+    </span>
+  );
+}
 
 export default function DetailPasienPage(): React.JSX.Element {
   const params = useParams();
@@ -50,9 +246,14 @@ export default function DetailPasienPage(): React.JSX.Element {
     Extract<Peran, { jenis: 'terapis' }> | null
   >(null);
 
-  // State data pasien
+  // State data pasien & sesi
   const [sedangMuat, setSedangMuat] = useState(true);
+  const [menyegarkan, setMenyegarkan] = useState(false);
   const [pasien, setPasien] = useState<PasienDetail | null>(null);
+  const [daftarSesi, setDaftarSesi] = useState<BarisSesi[]>([]);
+  // Data eskalasi disimpan di state untuk digunakan pada Fase 6 (run chart eskalasi & form tinjau)
+  const [daftarEskalasi, setDaftarEskalasi] = useState<BarisEskalasi[]>([]);
+  const [prioritas, setPrioritas] = useState<PrioritasDetail | null>(null);
   const [galat, setGalat] = useState<string | null>(null);
 
   // State bagian tautan perangkat (F03)
@@ -88,7 +289,7 @@ export default function DetailPasienPage(): React.JSX.Element {
     };
   }, []);
 
-  // Pindahkan fokus ke dialog konfirmasi saat muncul (aksesibilitas)
+  // Pindahkan fokus ke dialog konfirmasi saat muncul (aksesibilitas NFR-6)
   useEffect(() => {
     if (konfirmasiTampil) {
       konfirmasiRef.current?.focus();
@@ -119,48 +320,78 @@ export default function DetailPasienPage(): React.JSX.Element {
     validasiPeran();
   }, [router]);
 
-  // 2. Muat data pasien
-  useEffect(() => {
-    if (sedangCekPeran) return;
+  // Fungsi muat paralel (Fase 5 PLAN):
+  // Muat awal (awal = true) menampilkan layar "Memuat..." penuh.
+  // Muat ulang berikutnya (awal = false, misal dari onBerhasil FormResep) senyap dengan state menyegarkan.
+  const muat = useCallback(
+    async (awal: boolean = false) => {
+      if (!id || !REGEX_UUID.test(id)) {
+        if (mountedRef.current) {
+          setPasien(null);
+          setSedangMuat(false);
+        }
+        return;
+      }
 
-    // Validasi id dengan regex UUID: bila tidak valid, jangan query dan tampilkan cabang "Pasien tidak ditemukan"
-    if (!id || !REGEX_UUID.test(id)) {
-      setPasien(null);
-      setSedangMuat(false);
-      return;
-    }
-
-    async function muatPasien() {
-      setSedangMuat(true);
+      if (awal) {
+        setSedangMuat(true);
+      } else {
+        setMenyegarkan(true);
+      }
       setGalat(null);
 
       try {
-        const { data, error } = await supabase
-          .from('pasien')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
+        const [resPasien, resSesi, resEskalasi, resPrioritas] =
+          await Promise.all([
+            supabase.from('pasien').select('*').eq('id', id).maybeSingle(),
+            supabase
+              .from('sesi')
+              .select(
+                'id, mulai, resep, rep_total, rep_terukur, rep_terkompensasi, pct_terkompensasi, per_gerakan, pct_tak_terukur, nyeri, is_sintetis'
+              )
+              .eq('pasien_id', id)
+              .order('mulai'),
+            supabase
+              .from('eskalasi')
+              .select('*')
+              .eq('pasien_id', id)
+              .order('dibuka'),
+            supabase
+              .from('v_prioritas')
+              .select('sesi_7_hari, sesi_per_minggu')
+              .eq('pasien_id', id)
+              .maybeSingle(),
+          ]);
 
         if (!mountedRef.current) return;
 
-        if (error) {
-          console.error('Galat kueri pasien:', error);
-          setGalat(pesanGalat(error));
-          setSedangMuat(false);
+        // Promise.all tidak melempar galat Supabase; periksa .error di setiap hasil
+        const errFirst =
+          resPasien.error ||
+          resSesi.error ||
+          resEskalasi.error ||
+          resPrioritas.error;
+
+        if (errFirst) {
+          console.error('Galat memuat data detail pasien:', errFirst);
+          setGalat(pesanGalat(errFirst));
           return;
         }
 
-        if (!data) {
+        if (!resPasien.data) {
           setPasien(null);
-          setSedangMuat(false);
           return;
         }
 
-        const dataPasien = data as PasienDetail;
+        const dataPasien = resPasien.data as PasienDetail;
         setPasien(dataPasien);
+        setDaftarSesi((resSesi.data as BarisSesi[]) || []);
+        // Data eskalasi disimpan di state tetapi belum dirender pada Fase 5 (akan dipakai pada Fase 6)
+        setDaftarEskalasi((resEskalasi.data as BarisEskalasi[]) || []);
+        setPrioritas((resPrioritas.data as PrioritasDetail) || null);
 
-        // Jika pasien sudah memiliki kode klaim aktif, tampilkan tautan dan coba buat QR awal
-        if (dataPasien.kode_klaim && dataPasien.kode_kedaluwarsa) {
+        // Pemuatan QR dari kode_klaim yang masih berlaku HANYA pada muat awal
+        if (awal && dataPasien.kode_klaim && dataPasien.kode_kedaluwarsa) {
           const tglExpired = new Date(dataPasien.kode_kedaluwarsa);
           if (tglExpired > new Date()) {
             const origin =
@@ -194,21 +425,29 @@ export default function DetailPasienPage(): React.JSX.Element {
         }
       } catch (err: unknown) {
         if (!mountedRef.current) return;
-        console.error('Galat memuat pasien:', err);
+        console.error('Galat saat memuat data:', err);
         setGalat(pesanGalat(err as { message?: string; status?: number }));
       } finally {
         if (mountedRef.current) {
-          setSedangMuat(false);
+          if (awal) {
+            setSedangMuat(false);
+          } else {
+            setMenyegarkan(false);
+          }
         }
       }
-    }
+    },
+    [id]
+  );
 
-    muatPasien();
-  }, [sedangCekPeran, id]);
+  // 2. Efek pemanggilan awal muat data
+  useEffect(() => {
+    if (sedangCekPeran) return;
+    muat(true);
+  }, [sedangCekPeran, muat]);
 
   // Handler klik tombol "Buat tautan perangkat"
   function handleKlikBuatTautan() {
-    // Jika sudah ada kode aktif, pasien memiliki kode klaim, atau perangkat sudah terikat (user_id), minta konfirmasi
     if (kodeAktif || pasien?.kode_klaim || pasien?.user_id) {
       setKonfirmasiTampil(true);
     } else {
@@ -266,7 +505,6 @@ export default function DetailPasienPage(): React.JSX.Element {
 
       if (!mountedRef.current || seq !== seqRef.current) return;
 
-      // 1. Set kodeAktif, tautanAktif, tanggalKedaluwarsa, dan pasien LEBIH DULU
       setKodeAktif(kode);
       setTautanAktif(tautan);
       setTanggalKedaluwarsa(tglKedaluwarsaStr);
@@ -284,7 +522,7 @@ export default function DetailPasienPage(): React.JSX.Element {
           : null
       );
 
-      // 2. Bungkus QRCode.toDataURL dalam try/catch tersendiri agar kode tetap aktif bila QR gagal dibuat
+      // Isolasi try/catch agar tautan tetap aktif bila pembuatan data URL QR gagal
       try {
         const dataUrl = await QRCode.toDataURL(tautan, {
           margin: 2,
@@ -338,7 +576,7 @@ export default function DetailPasienPage(): React.JSX.Element {
     }
   }
 
-  // Tampilan selama guard peran berlangsung (tidak menampilkan data sebelum guard selesai)
+  // Tampilan selama guard peran berlangsung
   if (sedangCekPeran) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6 bg-slate-50">
@@ -349,7 +587,7 @@ export default function DetailPasienPage(): React.JSX.Element {
     );
   }
 
-  // Tampilan selama memuat data pasien
+  // Tampilan selama muat awal penuh
   if (sedangMuat) {
     return (
       <main className="mx-auto max-w-4xl p-6">
@@ -428,6 +666,59 @@ export default function DetailPasienPage(): React.JSX.Element {
     );
   }
 
+  // --- Perhitungan Data Bagian C: Tren % Terkompensasi ---
+  // Tampilkan paling banyak 30 sesi terakhir [default spec]
+  const sesiTren30 = daftarSesi.slice(-30);
+  const titikTren: TitikGrafik[] = sesiTren30.map((s) => {
+    const isCelah =
+      s.pct_terkompensasi === null ||
+      s.pct_terkompensasi === undefined ||
+      s.rep_terukur === 0;
+
+    const yVal = isCelah ? null : Number(Number(s.pct_terkompensasi).toFixed(1));
+
+    const mode = s.resep?.mode_koreksi;
+    let bentuk: 'bulat' | 'kotak' = 'bulat';
+    let huruf: string | undefined = undefined;
+
+    if (mode === 'penuh') {
+      bentuk = 'bulat';
+      huruf = 'P';
+    } else if (mode === 'mati') {
+      bentuk = 'kotak';
+      huruf = 'M';
+    } else if (mode === 'ringkasan') {
+      // [default spec] Mode 'ringkasan' dipetakan ke titik bulat + huruf 'R'
+      bentuk = 'bulat';
+      huruf = 'R';
+    } else {
+      bentuk = 'bulat';
+      huruf = undefined;
+    }
+
+    return {
+      y: yVal,
+      label: formatTanggalPendek(s.mulai),
+      bentuk,
+      huruf,
+    };
+  });
+
+  // --- Perhitungan Data Bagian D: Tabel 10 Sesi Terakhir & Kepatuhan ---
+  const sesiTerbaru10 = [...daftarSesi].reverse().slice(0, 10);
+
+  // Kepatuhan 7 hari:
+  // Bila v_prioritas null, fallback hitung sesi 7 hari dari daftarSesi dan target sesi_per_minggu
+  const batas7Hari = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const sesi7HariFallback = daftarSesi.filter(
+    (s) => new Date(s.mulai).getTime() > batas7Hari
+  ).length;
+
+  // [default spec] Fallback hitung kepatuhan bila v_prioritas bernilai null
+  const sesi7Hari = prioritas?.sesi_7_hari ?? sesi7HariFallback;
+  const targetPerMinggu =
+    prioritas?.sesi_per_minggu ?? pasien.sesi_per_minggu ?? 3;
+
   return (
     <main className="mx-auto max-w-4xl p-6 space-y-8">
       {/* 1. KEPALA HALAMAN (Header) */}
@@ -457,6 +748,11 @@ export default function DetailPasienPage(): React.JSX.Element {
                   Data sintetis
                 </span>
               )}
+              {menyegarkan && (
+                <span className="text-lg font-medium text-slate-500 animate-pulse">
+                  (Menyegarkan data...)
+                </span>
+              )}
             </div>
             <p className="text-xl text-slate-700">
               Sisi terdampak:{' '}
@@ -475,17 +771,310 @@ export default function DetailPasienPage(): React.JSX.Element {
         </div>
       </header>
 
-      {/* // Fase 6: Eskalasi terbuka (bila ada), run chart, tabel eskalasi, tombol Tinjau */}
+      {/* 2. PLACEHOLDER FASE 6: Eskalasi terbuka, run chart, tabel eskalasi, tombol Tinjau */}
+      {/* Placeholder Fase 6: Eskalasi terbuka (bila ada), run chart, tabel eskalasi, tombol Tinjau */}
 
-      {/* // Fase 5: Tren % terkompensasi per sesi (bulat P / kotak M) */}
+      {/* 3. TREN % TERKOMPENSASI PER SESI (SPEC §10.4 butir 3) */}
+      <section
+        aria-labelledby="judul-tren-kompensasi"
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      >
+        <div className="space-y-1">
+          <h2
+            id="judul-tren-kompensasi"
+            className="text-2xl font-bold text-slate-900"
+          >
+            Tren % Terkompensasi per Sesi
+          </h2>
+          <p className="text-lg text-slate-600">
+            Perkembangan kompensasi postur (maksimal 30 sesi terakhir).
+          </p>
+        </div>
 
-      {/* // Fase 5: Tabel 10 sesi terakhir (kepatuhan, nyeri, tak terukur) */}
+        {daftarSesi.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-lg font-medium text-slate-700">
+            Belum ada sesi latihan
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <Grafik
+              judul="Tren % Terkompensasi per Sesi"
+              titik={titikTren}
+              yMin={0}
+              yMaks={100}
+              satuan="%"
+              tinggi={220}
+            />
+            {/* Legenda teks: informasi tidak boleh hanya lewat warna (NFR-6) */}
+            <p className="text-center text-lg font-medium text-slate-700">
+              Bulat P = Penuh · Kotak M = Mati · Bulat R = Ringkasan
+            </p>
+          </div>
+        )}
+      </section>
 
-      {/* // Fase 5: Metrik kinematik per gerakan */}
+      {/* 4. TABEL 10 SESI TERAKHIR + KEPATUHAN (SPEC §10.4 butir 4) */}
+      <section
+        aria-labelledby="judul-riwayat-sesi"
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2
+              id="judul-riwayat-sesi"
+              className="text-2xl font-bold text-slate-900"
+            >
+              10 Sesi Terakhir & Kepatuhan
+            </h2>
+            <p className="text-lg text-slate-600">
+              Riwayat sesi terbaru dan tingkat kepatuhan latihan 7 hari terakhir.
+            </p>
+          </div>
+          <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-2.5">
+            <p className="text-lg font-bold text-sky-950">
+              7 hari: {sesi7Hari} dari {targetPerMinggu}
+            </p>
+          </div>
+        </div>
 
-      {/* // Fase 7: Kartu Ringkasan AI */}
+        {daftarSesi.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-lg font-medium text-slate-700">
+            Belum ada sesi latihan
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[640px]">
+              <caption className="sr-only">
+                Tabel 10 sesi latihan terakhir beserta kompensasi, mode, nyeri,
+                persentase tak terukur, dan lencana data sintetis.
+              </caption>
+              <thead>
+                <tr className="border-b border-slate-300 bg-slate-50 text-lg font-semibold text-slate-800">
+                  <th scope="col" className="p-3">
+                    Tanggal
+                  </th>
+                  <th scope="col" className="p-3">
+                    % Terkompensasi
+                  </th>
+                  <th scope="col" className="p-3">
+                    Mode
+                  </th>
+                  <th scope="col" className="p-3">
+                    Nyeri
+                  </th>
+                  <th scope="col" className="p-3">
+                    % Tak Terukur
+                  </th>
+                  <th scope="col" className="p-3">
+                    Sintetis
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-lg text-slate-800">
+                {sesiTerbaru10.map((s) => {
+                  const isNullKompensasi =
+                    s.pct_terkompensasi === null ||
+                    s.pct_terkompensasi === undefined ||
+                    s.rep_terukur === 0;
 
-      {/* 2. BAGIAN TAUTAN PERANGKAT (Fase 4c / F03) */}
+                  const pctStr = isNullKompensasi
+                    ? '—'
+                    : `${Number(s.pct_terkompensasi).toFixed(1)}%`;
+
+                  const modeStr =
+                    s.resep?.mode_koreksi === 'penuh'
+                      ? 'Penuh'
+                      : s.resep?.mode_koreksi === 'mati'
+                      ? 'Mati'
+                      : s.resep?.mode_koreksi === 'ringkasan'
+                      ? 'Ringkasan'
+                      : '—';
+
+                  const pctTakTerukurStr =
+                    s.pct_tak_terukur !== null && s.pct_tak_terukur !== undefined
+                      ? `${Number(s.pct_tak_terukur).toFixed(1)}%`
+                      : '—';
+
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50/70">
+                      <td className="p-3 font-medium whitespace-nowrap">
+                        {formatTanggalJam(s.mulai)}
+                      </td>
+                      <td className="p-3 font-semibold">{pctStr}</td>
+                      <td className="p-3">{modeStr}</td>
+                      <td className="p-3">{renderNyeri(s.nyeri)}</td>
+                      <td className="p-3">{pctTakTerukurStr}</td>
+                      <td className="p-3">
+                        {renderLencanaSintetis(s.is_sintetis)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* 5. METRIK KINEMATIK PER GERAKAN (SPEC §10.4 butir 5) */}
+      <section
+        aria-labelledby="judul-kinematik"
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      >
+        <div className="space-y-1">
+          <h2
+            id="judul-kinematik"
+            className="text-2xl font-bold text-slate-900"
+          >
+            Metrik Kinematik per Gerakan
+          </h2>
+          {/* Keterangan tetap sesuai SPEC: "2D, untuk tren pasien ini saja" */}
+          <p className="text-lg text-slate-600">
+            2D, untuk tren pasien ini saja
+          </p>
+        </div>
+
+        {daftarSesi.length === 0 ||
+        !pasien.gerakan ||
+        pasien.gerakan.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-lg font-medium text-slate-700">
+            Belum ada data gerak
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {pasien.gerakan.map((g) => {
+              // Kumpulkan titik grafik median waktu gerak untuk gerakan g (maks 30 sesi terakhir)
+              const sesi30 = daftarSesi.slice(-30);
+              const titikGerakan: TitikGrafik[] = sesi30.map((s) => {
+                const infoGerakan =
+                  s.per_gerakan && typeof s.per_gerakan === 'object'
+                    ? s.per_gerakan[g]
+                    : null;
+                const waktu = infoGerakan?.waktu_gerak_median;
+                const yVal =
+                  waktu !== null &&
+                  waktu !== undefined &&
+                  !Number.isNaN(Number(waktu))
+                    ? Number(Number(waktu).toFixed(2))
+                    : null;
+
+                return {
+                  y: yVal,
+                  label: formatTanggalPendek(s.mulai),
+                  bentuk: 'bulat',
+                };
+              });
+
+              const nilaiValid = titikGerakan
+                .filter((pt) => pt.y !== null)
+                .map((pt) => pt.y as number);
+
+              // Cari sesi terakhir yang memiliki data untuk gerakan ini
+              const sesiTerakhirAdaData = [...daftarSesi]
+                .reverse()
+                .find((s) => {
+                  const pg =
+                    s.per_gerakan && typeof s.per_gerakan === 'object'
+                      ? s.per_gerakan[g]
+                      : null;
+                  return pg !== null && pg !== undefined;
+                });
+
+              const dataTerakhir = sesiTerakhirAdaData?.per_gerakan?.[g];
+              const adaData = nilaiValid.length > 0 || Boolean(dataTerakhir);
+
+              if (!adaData) {
+                return (
+                  <div
+                    key={g}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-3"
+                  >
+                    <h3 className="text-xl font-bold text-slate-800">
+                      Gerakan: {labelGerakan(g)}
+                    </h3>
+                    <p className="text-lg text-slate-600">
+                      Belum ada data gerak
+                    </p>
+                  </div>
+                );
+              }
+
+              // Batas yMaks = Math.max(4, Math.ceil(nilaiMaks * 1.2)) agar selalu bulat
+              const nilaiMaks =
+                nilaiValid.length > 0 ? Math.max(...nilaiValid) : 0;
+              const yMaks = Math.max(4, Math.ceil(nilaiMaks * 1.2));
+
+              const vPuncakStr =
+                dataTerakhir?.v_puncak_median !== null &&
+                dataTerakhir?.v_puncak_median !== undefined
+                  ? Number(dataTerakhir.v_puncak_median).toFixed(2)
+                  : '—';
+
+              const nPuncakStr =
+                dataTerakhir?.n_puncak_median !== null &&
+                dataTerakhir?.n_puncak_median !== undefined
+                  ? dataTerakhir.n_puncak_median
+                  : '—';
+
+              const batangN = dataTerakhir?.per_penanda?.batang ?? 0;
+              const bahuN = dataTerakhir?.per_penanda?.bahu ?? 0;
+
+              return (
+                <div
+                  key={g}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-4"
+                >
+                  <h3 className="text-xl font-bold text-slate-800">
+                    Gerakan: {labelGerakan(g)}
+                  </h3>
+
+                  <Grafik
+                    judul={`Tren Waktu Gerak Median: ${labelGerakan(g)}`}
+                    titik={titikGerakan}
+                    yMin={0}
+                    yMaks={yMaks}
+                    satuan=" dtk"
+                    tinggi={200}
+                  />
+
+                  {dataTerakhir && sesiTerakhirAdaData && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                      <h4 className="text-lg font-bold text-slate-900">
+                        Metrik Sesi Terakhir ({formatTanggalJam(sesiTerakhirAdaData.mulai)}):
+                      </h4>
+                      <p className="text-lg text-slate-800">
+                        Kecepatan puncak (median):{' '}
+                        <span className="font-semibold">{vPuncakStr}</span> —
+                        kurang andal
+                      </p>
+                      <p className="text-lg text-slate-800">
+                        Jumlah puncak (median):{' '}
+                        <span className="font-semibold">{nPuncakStr}</span> —
+                        kurang andal
+                      </p>
+                      <p className="text-lg text-slate-800">
+                        Rincian penanda terkompensasi:{' '}
+                        <span className="font-semibold">
+                          Batang: {batangN}
+                        </span>
+                        {' · '}
+                        <span className="font-semibold">
+                          Bahu: {bahuN} (penanda lemah)
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 6. PLACEHOLDER FASE 7: Kartu Ringkasan AI */}
+      {/* Placeholder Fase 7: Kartu Ringkasan AI (Gemini / templat deterministik) */}
+
+      {/* 7. BAGIAN TAUTAN PERANGKAT (Fase 4c / F03) */}
       <section
         aria-labelledby="judul-tautan-perangkat"
         className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
@@ -696,9 +1285,56 @@ export default function DetailPasienPage(): React.JSX.Element {
         )}
       </section>
 
-      {/* // Fase 5: Edit resep (FormResep) */}
+      {/* 8. EDIT RESEP (SPEC §10.4 butir 8) */}
+      <section
+        aria-labelledby="judul-edit-resep"
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      >
+        <div className="space-y-1">
+          <h2
+            id="judul-edit-resep"
+            className="text-2xl font-bold text-slate-900"
+          >
+            Ubah Resep Latihan
+          </h2>
+          <p className="text-lg text-slate-600">
+            Perubahan target latihan, repetisi, dan batas toleransi gerakan pasien.
+          </p>
+        </div>
 
-      {/* // Fase 5+: Tombol "Latih sebagai pasien ini" (bila peranTerapis?.demo) */}
+        {/* Pemanggilan muat(false) senyap agar FormResep tidak ter-unmount dan pesan sukses tetap tampil */}
+        <FormResep
+          key={pasien.id}
+          pasien={pasien}
+          onBerhasil={() => muat(false)}
+        />
+      </section>
+
+      {/* 9. TOMBOL DEMO (SPEC §10.4 butir 9: hanya bila peranTerapis?.demo) */}
+      {/* Rute /pasien/sesi adalah milik Ari; tombol ini disediakan untuk pengujian mode demo */}
+      {peranTerapis?.demo && (
+        <section
+          aria-labelledby="judul-demo"
+          className="rounded-xl border border-purple-200 bg-purple-50 p-6 space-y-4"
+        >
+          <div className="space-y-1">
+            <h2 id="judul-demo" className="text-2xl font-bold text-purple-950">
+              Uji Coba Latihan Mandiri (Mode Demo)
+            </h2>
+            <p className="text-lg text-purple-900">
+              Sebagai akun fisioterapis demo, Anda dapat menjalankan simulasi latihan dengan resep pasien ini.
+            </p>
+          </div>
+          <div>
+            <Link
+              href={`/pasien/sesi?pasien=${pasien.id}`}
+              className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-purple-700 px-8 py-4 text-xl font-bold text-white hover:bg-purple-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-purple-500 shadow-sm"
+            >
+              Latih sebagai pasien ini
+            </Link>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

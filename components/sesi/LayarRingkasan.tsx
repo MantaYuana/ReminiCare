@@ -1,16 +1,20 @@
 'use client';
 
+import type { TitikGrafik } from '../Grafik';
+import Grafik from '../Grafik';
+import type { Riwayat } from '../../lib/lokal';
+
 // Summary screen shown after session completes or user stops early.
-// Grafik component (from backend team) will be wired here once available.
 
 interface PropsLayarRingkasan {
   totalRep: number;
   repBenar: number;
   tamu: boolean;
+  riwayat?: Riwayat[];
   onSelesai(): void;
   onNyeri?(nilai: 0 | 1 | 2): void;
   nyeriSudahDipilih: boolean;
-  pesanSimpan?: string; // error message bila penyimpanan gagal
+  pesanSimpan?: string;
 }
 
 const LABEL_NYERI: { nilai: 0 | 1 | 2; label: string; ikon: string }[] = [
@@ -23,12 +27,19 @@ export default function LayarRingkasan({
   totalRep,
   repBenar,
   tamu,
+  riwayat = [],
   onSelesai,
   onNyeri,
   nyeriSudahDipilih,
   pesanSimpan,
 }: PropsLayarRingkasan) {
   const pctBenar = totalRep > 0 ? Math.round((repBenar / totalRep) * 100) : 0;
+
+  // Buat titik grafik dari 7 riwayat terakhir
+  const titikGrafik: TitikGrafik[] = riwayat.slice(-7).map((r, i) => ({
+    y: r.pct_benar ?? null,
+    label: `S${i + 1}`,
+  }));
 
   return (
     <div className="flex flex-col items-center gap-6 p-6 max-w-lg mx-auto">
@@ -57,7 +68,18 @@ export default function LayarRingkasan({
         <p className="text-4xl font-bold text-blue-600">{pctBenar}%</p>
       </div>
 
-      {/* TODO: Grafik riwayat — disisipkan setelah Grafik.tsx tersedia */}
+      {/* Grafik riwayat — hanya pasien dengan data */}
+      {!tamu && titikGrafik.length > 0 && (
+        <div className="w-full">
+          <Grafik
+            judul="% repetisi benar (7 sesi terakhir)"
+            titik={titikGrafik}
+            satuan="%"
+          />
+        </div>
+      )}
+
+      {/* TODO: agregatSesi — wiring ke mesin asli saat integrasi */}
 
       {/* Lapor nyeri — hanya pasien, bukan tamu */}
       {!tamu && onNyeri && (

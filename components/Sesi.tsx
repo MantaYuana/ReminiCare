@@ -9,7 +9,9 @@ import { mulaiLayar, langkah, buatJuruSuara } from '../lib/sesi-state';
 import type { Layar, Aksi } from '../lib/sesi-state';
 import { suara } from '../lib/suara';
 import { buatMesinTiruan } from '../lib/mesin-tiruan';
-import { tambah, kirim, tambahRiwayat, bacaRiwayat } from '../lib/antrean';
+import { tambah, kirim } from '../lib/antrean';
+import { tambahRiwayat, bacaRiwayat } from '../lib/lokal';
+import type { Riwayat } from '../lib/lokal';
 
 import LayarPanduan    from './sesi/LayarPanduan';
 import LayarKalibrasi  from './sesi/LayarKalibrasi';
@@ -44,6 +46,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
   const [pesanGalat, setPesanGalat] = useState<string | null>(null);
   const [nyeriSudahDipilih, setNyeriSudahDipilih] = useState(false);
   const [pesanSimpan, setPesanSimpan] = useState<string | undefined>();
+  const [riwayat, setRiwayat] = useState<Riwayat[]>([]);
 
   const juruSuara = useRef(buatJuruSuara(resep.mode_koreksi));
 
@@ -165,8 +168,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
         mulai: new Date(mulaiMs.current).toISOString(),
         pct_benar: layar.totalRep > 0 ? null : null,
         rep_total: layar.totalRep,
-        rep_benar: layar.totalRep, // placeholder sampai mesin asli tersedia
+        rep_benar: layar.totalRep,
       });
+      setRiwayat(bacaRiwayat(pasienId));
     }
   }, [layar.nama, layar.totalRep, simpan, pasienId]);
 
@@ -279,6 +283,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
         totalRep={layar.totalRep}
         repBenar={layar.totalRep}
         tamu={tamu}
+        riwayat={riwayat}
         pesanSimpan={pesanSimpan}
         nyeriSudahDipilih={nyeriSudahDipilih}
         onNyeri={!tamu ? handleNyeri : undefined}

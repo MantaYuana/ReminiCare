@@ -94,7 +94,7 @@ export default function Page() {
     return (
       <main>
         {galat && (
-          <div role="alert" className="rc-alert mx-5 mt-6">{galat}</div>
+          <div role="alert" className="rc-alert mx-5 mt-6 md:mx-10">{galat}</div>
         )}
         <LayarSetuju onSetuju={handleSetuju} sibuk={sibuk} />
       </main>

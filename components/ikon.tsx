@@ -84,6 +84,12 @@ export const IkonTitikTiga = (p: P) => (
 export const IkonPanahBawah = (p: P) => (
   <Dasar {...p}><path d="M6 9l6 6 6-6" /></Dasar>
 );
+export const IkonSuara = (p: P) => (
+  <Dasar {...p}><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M16.5 9a4.5 4.5 0 0 1 0 6" /><path d="M19 6.5a8 8 0 0 1 0 11" /></Dasar>
+);
+export const IkonBerhenti = (p: P) => (
+  <Dasar {...p}><rect x="6" y="6" width="12" height="12" rx="2" /></Dasar>
+);
 export const IkonTambah = (p: P) => (
   <Dasar {...p}><path d="M12 5v14" /><path d="M5 12h14" /></Dasar>
 );

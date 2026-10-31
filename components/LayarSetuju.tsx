@@ -10,9 +10,11 @@ type TampilLayar = 'setuju' | 'tolak';
 
 interface PropsLayarSetuju {
   onSetuju(oleh: PihakSetuju): void;
+  /** Mencegah ketukan ganda selama klaim berjalan. */
+  sibuk?: boolean;
 }
 
-export default function LayarSetuju({ onSetuju }: PropsLayarSetuju) {
+export default function LayarSetuju({ onSetuju, sibuk = false }: PropsLayarSetuju) {
   const paragraf = teksSetuju();
   const [pihak, setPihak]   = useState<PihakSetuju | null>(null);
   const [tampil, setTampil] = useState<TampilLayar>('setuju');
@@ -26,14 +28,10 @@ export default function LayarSetuju({ onSetuju }: PropsLayarSetuju) {
 
   if (tampil === 'tolak') {
     return (
-      <div className="flex flex-col items-center justify-center gap-6 p-6 min-h-[60vh] max-w-lg mx-auto text-center">
-        <p className="text-base">
-          Tanpa persetujuan aplikasi tidak bisa dipakai. Hubungi fisioterapis Anda.
-        </p>
-        <button
-          onClick={() => setTampil('setuju')}
-          className="btn-sekunder bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-        >
+      <div className="rc-wrap min-h-[70vh] justify-center text-center">
+        <h1 className="rc-judul">Persetujuan diperlukan</h1>
+        <p className="rc-sub">Tanpa persetujuan, aplikasi tidak bisa dipakai. Hubungi fisioterapis Anda.</p>
+        <button onClick={() => setTampil('setuju')} className="rc-btn-2 self-center">
           Kembali
         </button>
       </div>
@@ -41,32 +39,30 @@ export default function LayarSetuju({ onSetuju }: PropsLayarSetuju) {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold">Persetujuan penggunaan</h1>
+    <div className="rc-wrap">
+      <div>
+        <h1 className="rc-judul">Persetujuan penggunaan</h1>
+        <p className="rc-sub">Baca dengan teliti, atau ketuk Dengarkan untuk mendengarnya.</p>
+      </div>
 
-      {/* Paragraf persetujuan */}
-      <div className="flex flex-col gap-3">
+      <div className="rc-card flex flex-col gap-3">
         {paragraf.map((teks, i) => (
-          <p key={i} className="text-base text-gray-700">{teks}</p>
+          <p key={i} className="text-base">{teks}</p>
         ))}
       </div>
 
-      {/* Tombol dengarkan */}
-      <button
-        type="button"
-        onClick={handleDengarkan}
-        className="btn-sekunder bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400 self-start"
-      >
-        🔊 Dengarkan
+      <button type="button" onClick={handleDengarkan} className="rc-btn-2 self-start">
+        <span aria-hidden="true">🔊</span> Dengarkan
       </button>
 
-      {/* Pilih pihak */}
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-base font-medium mb-1">Siapa yang menyetujui?</legend>
+        <legend className="mb-1 text-base font-semibold">Siapa yang menyetujui?</legend>
         {(['pasien', 'wali'] as PihakSetuju[]).map(p => (
           <label
             key={p}
-            className="flex items-center gap-3 cursor-pointer btn-sekunder bg-gray-50 border border-gray-200 rounded-xl hover:bg-blue-50 hover:border-blue-300"
+            className={`flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-2 transition-colors ${
+              pihak === p ? 'border-brand-700 bg-brand-50' : 'border-slate-300 bg-white hover:bg-slate-50'
+            }`}
           >
             <input
               type="radio"
@@ -74,28 +70,24 @@ export default function LayarSetuju({ onSetuju }: PropsLayarSetuju) {
               value={p}
               checked={pihak === p}
               onChange={() => setPihak(p)}
-              className="w-5 h-5 accent-blue-600"
+              className="h-5 w-5 accent-brand-700"
             />
-            <span className="text-base">
+            <span className="text-base font-medium">
               {p === 'pasien' ? 'Saya pasien' : 'Saya wali atas nama pasien'}
             </span>
           </label>
         ))}
       </fieldset>
 
-      {/* Tombol aksi */}
       <div className="flex flex-col gap-3">
         <button
           onClick={() => pihak && onSetuju(pihak)}
-          disabled={!pihak}
-          className="btn-utama bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-blue-500"
+          disabled={!pihak || sibuk}
+          className="rc-btn"
         >
-          Setuju
+          {sibuk ? 'Memproses…' : 'Setuju'}
         </button>
-        <button
-          onClick={() => setTampil('tolak')}
-          className="btn-sekunder bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-        >
+        <button onClick={() => setTampil('tolak')} disabled={sibuk} className="rc-btn-2">
           Tidak setuju
         </button>
       </div>

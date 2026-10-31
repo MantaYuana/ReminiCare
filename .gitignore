@@ -28,11 +28,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Kiro AI – jangan pernah di-commit
 .kiro/
 
-# Spec & plan documents – jangan di-commit
 *.md
+spec/
 
-# Scripts helper (tidak perlu masuk repo)
+# Scripts helper
 scripts/

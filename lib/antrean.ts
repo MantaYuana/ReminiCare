@@ -169,6 +169,12 @@ function buatPenyimpananLokal(): PenyimpananKV {
 // Singleton dibuat di runtime browser, bukan saat module dimuat
 let _singleton: ReturnType<typeof buatAntrean> | null = null;
 
+// Nama key sesuai spec §4.2 dan plan Pindra: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+// (Supabase generasi baru mengganti nama dari anon key ke publishable key)
+function supabaseKey(): string {
+  return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
+}
+
 function dapatSingleton() {
   if (_singleton) return _singleton;
   // Dinamis import supabase hanya di browser
@@ -176,9 +182,7 @@ function dapatSingleton() {
     async upsertSesi(baris) {
       try {
         const { createClient } = await import('@supabase/supabase-js');
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-        const sb = createClient(url, key);
+        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', supabaseKey());
         const { error, status } = await sb
           .from('sesi')
           .upsert(baris, { onConflict: 'id', ignoreDuplicates: true });
@@ -191,9 +195,7 @@ function dapatSingleton() {
     async laporNyeri(id, n) {
       try {
         const { createClient } = await import('@supabase/supabase-js');
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-        const sb = createClient(url, key);
+        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', supabaseKey());
         const { data, error, status } = await sb.rpc('lapor_nyeri', {
           p_sesi_id: id,
           p_nilai: n,

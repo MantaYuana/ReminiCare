@@ -28,16 +28,17 @@ const KATA_ANGKA: Record<number, string> = {
 };
 
 // ── Teks persetujuan (F19-v1) ─────────────────────────────────────────────
-// TODO: ganti dengan naskah persetujuan final dari tim
+// DRAF dari kerangka SPEC §10.5 (lima paragraf = lima klip I-SETUJU-n).
+// TODO: ganti dengan naskah final Pindra (A4); jumlah paragraf harus sama dengan klip di public/audio.
 const TEKS_SETUJU = [
-  'Aplikasi ini akan merekam gerakan tubuh Anda menggunakan kamera perangkat untuk membantu latihan fisioterapi.',
-  'Data gerakan diproses di perangkat dan hanya skor latihan yang dikirim ke server, bukan video.',
-  'Data Anda disimpan dengan aman dan hanya dapat diakses oleh fisioterapis Anda.',
-  'Anda dapat menghapus semua data dan melepas perangkat kapan saja melalui menu Hapus Data.',
-  'Dengan menekan Setuju, Anda menyatakan telah membaca dan memahami penjelasan ini.',
+  'Aplikasi ini membantu latihan lengan di rumah. Kamera menghitung gerakan dan memberi koreksi suara. Video tidak pernah keluar dari ponsel ini.',
+  'Yang disimpan: nama panggilan, resep, dan angka tiap sesi. Untuk ringkasan otomatis fisioterapis, hanya angka tanpa nama yang dikirim ke layanan AI Google. Untuk masuk, email dan nama akun Google Anda disimpan oleh layanan login, dan fisioterapis tidak melihatnya.',
+  'Data disimpan sampai Anda menghapusnya, atau sampai proyek demo ditutup, paling lama 90 hari.',
+  'Anda boleh berhenti kapan saja. Tombol Hapus data saya di beranda menghapus semua sesi dan melepas akun Anda dari data pasien. Akun login Anda tetap ada sampai fitur hapus akun tersedia.',
+  'Server berada di Singapura. Persetujuan diberikan oleh pasien, atau oleh wali atas nama pasien bila pasien tidak mampu.',
 ];
 
-// ── NASKAH utama ──────────────────────────────────────────────────────────
+// ── NASKAH utama (kalimat persis Lampiran A PRD) ──────────────────────────
 
 export const NASKAH: Record<string, string> = {
   // Angka hitungan N-1..N-20
@@ -45,35 +46,29 @@ export const NASKAH: Record<string, string> = {
     Object.entries(KATA_ANGKA).map(([k, v]) => [`N-${k}`, v]),
   ),
 
-  // Koreksi postur
-  // TODO: ganti dengan teks final dari Lampiran A
-  'K-CONDONG-S': 'Coba condongkan punggung ke sandaran kursi.',
-  'K-CONDONG-T': 'Coba duduk tegak, jangan condong.',
-  'K-MIRING':    'Coba duduk lurus, jangan miring ke samping.',
-  'K-BAHU':      'Turunkan bahu Anda, rileks.',
+  'K-CONDONG-S': 'Punggung tetap menempel sandaran.',
+  'K-CONDONG-T': 'Punggung tetap tegak.',
+  'K-MIRING':    'Badan jangan miring.',
+  'K-BAHU':      'Turunkan bahu, rileks.',
 
-  // Instruksi sesi
-  // TODO: ganti dengan teks final dari Lampiran A
-  'I-MULAI':       'Mari kita mulai latihan.',
-  'I-POSISI':      'Pastikan posisi duduk Anda sudah benar.',
-  'I-KAMERA':      'Izinkan akses kamera untuk memulai.',
-  'I-BINGKAI':     'Pastikan seluruh tubuh Anda terlihat di kamera.',
-  'I-GATING':      'Tahan posisi sejenak.',
-  'I-KALIB':       'Kalibrasi dimulai. Tetap diam.',
-  'I-KALIB-OK':    'Kalibrasi berhasil.',
-  'I-KALIB-ULANG': 'Kalibrasi gagal. Coba lagi.',
-  'I-G1':          'Gerakan pertama.',
-  'I-G2':          'Gerakan kedua.',
-  'I-ISTIRAHAT':   'Istirahat sejenak.',
-  'I-BAGUS':       'Bagus!',
-  'I-SELESAI':     'Latihan selesai. Kerja bagus!',
-  'I-NYERI':       'Apakah Anda merasakan nyeri setelah latihan?',
+  'I-MULAI':       'Ayo mulai latihan.',
+  'I-POSISI':      'Duduk tegak dan hadap ke kamera.',
+  'I-KAMERA':      'Duduk di kursi bersandaran. Letakkan ponsel setinggi dada, satu setengah sampai dua meter di depan Anda.',
+  'I-BINGKAI':     'Pastikan kepala sampai pangkuan terlihat di layar.',
+  'I-GATING':      'Kamera tidak melihat Anda dengan jelas.',
+  'I-KALIB':       'Diam sebentar.',
+  'I-KALIB-OK':    'Kalibrasi selesai.',
+  'I-KALIB-ULANG': 'Mohon diam sebentar, kita ulangi.',
+  'I-G1':          'Gerakan pertama: jangkau ke depan.',
+  'I-G2':          'Gerakan kedua: jangkau ke samping.',
+  'I-ISTIRAHAT':   'Istirahat sebentar.',
+  'I-BAGUS':       'Bagus, lanjutkan.',
+  'I-SELESAI':     'Sesi selesai. Terima kasih.',
+  'I-NYERI':       'Bagaimana rasanya hari ini?',
 
-  // Ringkasan performa
-  // TODO: ganti dengan teks final dari Lampiran A
-  'R-BAIK':   'Performa Anda hari ini sangat baik.',
-  'R-CUKUP':  'Performa Anda hari ini cukup baik.',
-  'R-KURANG': 'Terus berlatih, Anda pasti bisa lebih baik.',
+  'R-BAIK':   'Bagus, hampir semua gerakan sudah benar.',
+  'R-CUKUP':  'Cukup, sebagian gerakan masih perlu diperbaiki.',
+  'R-KURANG': 'Banyak gerakan masih perlu diperbaiki, pelan-pelan saja.',
 
   // Persetujuan I-SETUJU-1..n
   ...Object.fromEntries(

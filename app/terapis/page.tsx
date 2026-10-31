@@ -30,9 +30,14 @@ export default function DasborTerapisPage() {
   const [sudahMuat, setSudahMuat] = useState<boolean>(false);
   const [galat, setGalat] = useState<string | null>(null);
 
+  // State untuk tombol data contoh
+  const [sedangIsiContoh, setSedangIsiContoh] = useState<boolean>(false);
+  const [konfirmasiAturUlang, setKonfirmasiAturUlang] = useState<boolean>(false);
+
   // Pengaman urutan permintaan dan status unmount
   const seqRef = useRef<number>(0);
   const aktifRef = useRef<boolean>(true);
+  const sedangIsiContohRef = useRef<boolean>(false);
 
   useEffect(() => {
     aktifRef.current = true;
@@ -140,6 +145,36 @@ export default function DasborTerapisPage() {
     router.replace('/');
   };
 
+  const jalankanIsiContoh = async () => {
+    // Pengaman klik ganda
+    if (sedangIsiContohRef.current) return;
+    sedangIsiContohRef.current = true;
+
+    setSedangIsiContoh(true);
+    setGalat(null);
+    setKonfirmasiAturUlang(false);
+
+    try {
+      const { error } = await supabase.rpc('isi_contoh');
+
+      if (error) {
+        setGalat(pesanGalat(error));
+        return;
+      }
+
+      // Sukses: muat ulang daftar pasien
+      await muatData();
+    } catch (err: unknown) {
+      setGalat(pesanGalat(err as { message?: string }));
+    } finally {
+      sedangIsiContohRef.current = false;
+      setSedangIsiContoh(false);
+    }
+  };
+
+  // Hitung apakah ada data contoh
+  const adaContoh = daftarPasien.some(p => p.is_sintetis);
+
   if (sedangMemeriksa) {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center p-6 text-lg">
@@ -165,6 +200,17 @@ export default function DasborTerapisPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={adaContoh ? () => setKonfirmasiAturUlang(true) : jalankanIsiContoh}
+              disabled={sedangIsiContoh}
+              aria-label={adaContoh ? "Atur ulang data contoh" : "Isi data contoh"}
+              className="min-h-[44px] min-w-[44px] px-4 py-2 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-2 text-lg"
+            >
+              <span aria-hidden="true">{sedangIsiContoh ? '⏳' : '📋'}</span>
+              <span>{sedangIsiContoh ? 'Mengisi…' : (adaContoh ? 'Atur ulang data contoh' : 'Isi data contoh')}</span>
+            </button>
+
             <button
               type="button"
               onClick={muatData}
@@ -228,12 +274,22 @@ export default function DasborTerapisPage() {
               <p className="text-gray-600 max-w-lg mx-auto text-lg">
                 Tambahkan pasien baru untuk mengatur resep latihan dan membuat kode klaim perangkat.
               </p>
-              <Link
-                href="/terapis/pasien/baru"
-                className="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-lg"
-              >
-                <span>➕ Daftarkan Pasien Pertama</span>
-              </Link>
+              <div className="flex flex-wrap justify-center gap-3 pt-2">
+                <Link
+                  href="/terapis/pasien/baru"
+                  className="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors text-lg"
+                >
+                  <span>➕ Daftarkan Pasien Pertama</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={jalankanIsiContoh}
+                  disabled={sedangIsiContoh}
+                  className="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-semibold rounded-xl transition-colors text-lg disabled:opacity-50"
+                >
+                  <span>{sedangIsiContoh ? 'Mengisi…' : 'Isi data contoh'}</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -327,6 +383,55 @@ export default function DasborTerapisPage() {
             })}
           </div>
         </section>
+
+        {/* Dialog Konfirmasi Atur Ulang Data Contoh */}
+        {konfirmasiAturUlang && (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="dialog-title"
+            aria-describedby="dialog-desc"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={(e) => {
+              // Tutup dialog bila klik di luar
+              if (e.target === e.currentTarget) {
+                setKonfirmasiAturUlang(false);
+              }
+            }}
+            onKeyDown={(e) => {
+              // Tutup dialog bila tekan Escape
+              if (e.key === 'Escape') {
+                setKonfirmasiAturUlang(false);
+              }
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+              <h2 id="dialog-title" className="text-xl font-bold text-gray-900">
+                Atur Ulang Data Contoh?
+              </h2>
+              <p id="dialog-desc" className="text-lg text-gray-700">
+                Pasien contoh dan semua sesinya dibuat ulang. Ponsel yang terhubung ke pasien contoh harus memindai QR baru.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setKonfirmasiAturUlang(false)}
+                  autoFocus
+                  className="flex-1 min-h-[44px] px-4 py-2 border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold rounded-xl transition-colors text-lg"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={jalankanIsiContoh}
+                  className="flex-1 min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors text-lg"
+                >
+                  Ya, atur ulang
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

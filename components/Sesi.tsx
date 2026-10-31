@@ -217,6 +217,13 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     }
   }, [layar.nama, layar.gerakanKe, resep.gerakan, tamu]);
 
+  // I-BINGKAI tiap 10 dtk selama cek posisi di panduan belum lolos
+  useEffect(() => {
+    if (layar.nama !== 'panduan' || !gating) return;
+    const id = setInterval(() => suara.ucap('I-BINGKAI'), 10_000);
+    return () => clearInterval(id);
+  }, [layar.nama, gating]);
+
   // ── Kalibrasi selesai ───────────────────────────────────────────────────
 
   function handleKalibrasiSelesai() {

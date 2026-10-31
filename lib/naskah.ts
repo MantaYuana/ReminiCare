@@ -28,12 +28,12 @@ const KATA_ANGKA: Record<number, string> = {
 };
 
 // ── Teks persetujuan (F19-v1) ─────────────────────────────────────────────
-// TODO: ganti dengan naskah persetujuan final dari tim
+// Versi final untuk Task 7 - V9
 const TEKS_SETUJU = [
   'Aplikasi ini akan merekam gerakan tubuh Anda menggunakan kamera perangkat untuk membantu latihan fisioterapi.',
-  'Data gerakan diproses di perangkat dan hanya skor latihan yang dikirim ke server, bukan video.',
+  'Data gerakan diproses di perangkat dan hanya skor latihan yang dikirim ke server, bukan video. Untuk masuk, email dan nama akun Google Anda disimpan oleh layanan login (Supabase Auth); fisioterapis tidak melihatnya.',
   'Data Anda disimpan dengan aman dan hanya dapat diakses oleh fisioterapis Anda.',
-  'Anda dapat menghapus semua data dan melepas perangkat kapan saja melalui menu Hapus Data.',
+  'Anda dapat menghapus semua data latihan melalui menu Hapus Data, yang akan melepas akun Anda dari data pasien. Akun login Anda tetap ada sampai fitur hapus akun tersedia.',
   'Dengan menekan Setuju, Anda menyatakan telah membaca dan memahami penjelasan ini.',
 ];
 

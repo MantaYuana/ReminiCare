@@ -73,6 +73,10 @@ export type Peran =
 export async function cekPeran(): Promise<Peran>;
 export function masukGoogle(o?: { peran?: 'fisioterapis' | 'pasien'; lanjut?: string }): Promise<unknown>;
 export function pesanGalat(e: { message?: string; status?: number } | null): string;
+
+// lib/peran.ts (murni, aman diimpor node --test)
+export type Peran;                                              // sama dengan di atas; supabase.ts mengekspor ulang
+export function lanjutAman(l: string | null | undefined): string | null;   // path internal atau null
 ```
 
 | RPC | Parameter | Hasil | Galat |
@@ -232,14 +236,14 @@ git commit -m "feat(db): isi_contoh untuk Isi/Atur ulang data contoh (F16 V9)"
 
 **Interfaces:**
 - Consumes: `daftar`, `profil.peran` (Task 2).
-- Produces: semua yang ada di "Kontrak untuk Ari", plus fungsi murni di `lib/peran.ts`: `petakanPeran(uid: string, profil: { peran: 'fisioterapis' | 'pasien'; nama: string } | null, pasienId: string | null): Peran` dan `bangunRedirect(origin: string, o: { peran?: 'fisioterapis' | 'pasien'; lanjut?: string }): string`.
+- Produces: semua yang ada di "Kontrak untuk Ari", plus fungsi murni di `lib/peran.ts`: `petakanPeran(uid: string, profil: { peran: 'fisioterapis' | 'pasien'; nama: string } | null, pasienId: string | null): Peran`, `lanjutAman(l: string | null | undefined): string | null` (dipakai juga oleh `/auth/selesai` milik Ari, yang membaca `lanjut` dari URL), dan `bangunRedirect(origin: string, o: { peran?: 'fisioterapis' | 'pasien'; lanjut?: string }): string`.
 
 - [ ] **Step 1: Tulis `lib/peran.test.ts`.**
 
 ```ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { petakanPeran, bangunRedirect, pesanGalat } from './peran.ts';
+import { petakanPeran, bangunRedirect, lanjutAman, pesanGalat } from './peran.ts';
 
 test('petakanPeran: terapis, pasien, pasien_baru, tanpa_peran', () => {
   assert.deepEqual(petakanPeran('u1', { peran: 'fisioterapis', nama: 'Ayu' }, null), { jenis: 'terapis', uid: 'u1', nama: 'Ayu' });
@@ -257,7 +261,10 @@ test('bangunRedirect: peran + lanjut internal', () => {
 test('bangunRedirect: lanjut eksternal dibuang', () => {
   for (const l of ['//evil.com', '/\\evil.com', 'https://evil.com', 'evil.com']) {
     assert.equal(bangunRedirect('https://x.app', { lanjut: l }), 'https://x.app/auth/selesai');
+    assert.equal(lanjutAman(l), null);
   }
+  assert.equal(lanjutAman('/k/ABCD1234'), '/k/ABCD1234');
+  assert.equal(lanjutAman(null), null);
 });
 
 test('pesanGalat: kode V9', () => {
@@ -273,7 +280,7 @@ test('pesanGalat: kode V9', () => {
   Expected: FAIL `petakanPeran` / `bangunRedirect` tidak diekspor.
 - [ ] **Step 3: Implementasi di `lib/peran.ts` + `lib/supabase.ts`.**
   - Opsi `createClient` sesuai Global Constraints.
-  - `bangunRedirect`: `lanjut` hanya dipakai bila lolos `/^\/(?![\/\\])/`; tanpa parameter berarti tanpa `?`.
+  - `lanjutAman`: kembalikan `l` bila lolos `/^\/(?![\/\\])/`, selain itu `null`. `bangunRedirect` memakai `lanjutAman`; tanpa parameter berarti tanpa `?`.
   - `masukGoogle(o = {})`: `signInWithOAuth` dengan `redirectTo: bangunRedirect(location.origin, o)` dan `prompt: 'select_account'`.
   - `cekPeran`: penanganan `luring`/`keluar` yang ada dipertahankan. `profil` di-select `'peran, nama'`. Query `pasien` hanya bila peran `pasien`. Hasil akhir lewat `petakanPeran`.
   - `pesanGalat`: hapus empat kode lama (lihat Inventaris), lalu tambah:

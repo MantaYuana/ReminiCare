@@ -6,6 +6,7 @@ import { supabase, cekPeran } from '../../../lib/supabase';
 import { bacaResep, simpanResep, keResepLokal, KOLOM_RESEP } from '../../../lib/lokal';
 import type { ResepLokal } from '../../../lib/lokal';
 import Sesi from '../../../components/Sesi';
+import LayarMuat from '../../../components/LayarMuat';
 import type { ResepSalinan } from '../../../lib/kinematik/mesin';
 import type { Sisi } from '../../../lib/kinematik/tipe';
 import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI } from '../../../lib/kinematik/tipe';
@@ -85,11 +86,7 @@ export default function Page() {
   }, [router]);
 
   if (loading) {
-    return (
-      <main className="rc-wrap min-h-screen items-center justify-center text-center">
-        <p className="rc-sub" role="status">Memuat resep…</p>
-      </main>
-    );
+    return <LayarMuat teks="Memuat resep…" />;
   }
 
   if (galat) {

@@ -9,6 +9,7 @@ import { simpanResep, keResepLokal, KOLOM_RESEP } from '../../../lib/lokal';
 import AuthLayout, { IkonGoogle } from '../../../components/AuthLayout';
 import LayarSetuju from '../../../components/LayarSetuju';
 import PilihPeran from '../../../components/PilihPeran';
+import LayarMuat from '../../../components/LayarMuat';
 
 type TampilLayar =
   | 'memuat' | 'kode_salah' | 'keluar' | 'terapis' | 'tanpa_peran'
@@ -86,11 +87,7 @@ export default function Page() {
   }
 
   if (tampil === 'memuat') {
-    return (
-      <main className="rc-wrap min-h-screen items-center justify-center text-center">
-        <p className="rc-sub" role="status">Memuat…</p>
-      </main>
-    );
+    return <LayarMuat />;
   }
 
   if (tampil === 'setuju') {

@@ -9,6 +9,7 @@ import type { Riwayat, ResepLokal } from '../../lib/lokal';
 import { jumlahSesi } from '../../lib/antrean';
 import { normalKode } from '../../lib/arah';
 import { suara } from '../../lib/suara';
+import LayarMuat from '../../components/LayarMuat';
 import DashboardShell from '../../components/DashboardShell';
 import type { ItemNav } from '../../components/DashboardShell';
 import BannerSambutan from '../../components/BannerSambutan';
@@ -162,11 +163,7 @@ export default function Page() {
   }
 
   if (keadaan === 'memuat') {
-    return (
-      <main className="rc-wrap min-h-screen items-center justify-center text-center">
-        <p className="rc-sub" role="status">Memuat…</p>
-      </main>
-    );
+    return <LayarMuat />;
   }
 
   if (konfirmHapus) {

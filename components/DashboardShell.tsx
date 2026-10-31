@@ -28,6 +28,10 @@ interface Props {
   panel?: React.ReactNode;
   /** Sembunyikan bilah cari dan filter. */
   tanpaCari?: boolean;
+  /** Bilah cari berfungsi bila `onCari` diberikan; tanpa itu nonaktif. */
+  cari?: string;
+  onCari?: (nilai: string) => void;
+  placeholderCari?: string;
   /** Layar penuh gelap: sidebar dan bilah atas disembunyikan, isi tetap terpasang (kamera tidak putus). */
   penuh?: boolean;
   children: React.ReactNode;
@@ -90,7 +94,7 @@ function Grup({ judul, tertutup, children }: { judul: string; tertutup: boolean;
  * Kerangka dashboard tiga kolom: sidebar kartu (bisa diciutkan; laci di ponsel),
  * kolom tengah dengan bilah cari, dan kolom kanan opsional.
  */
-export default function DashboardShell({ judul, atas, bawah = [], tombol, panel, tanpaCari, penuh, children }: Props) {
+export default function DashboardShell({ judul, atas, bawah = [], tombol, panel, tanpaCari, cari, onCari, placeholderCari = 'Cari latihan Anda di sini…', penuh, children }: Props) {
   const [tertutup, setTertutup] = useState(false);   // hanya layar lebar: ikon saja
   const [laci, setLaci] = useState(false);           // hanya ponsel: geser masuk
 
@@ -197,9 +201,11 @@ export default function DashboardShell({ judul, atas, bawah = [], tombol, panel,
                   <IkonCari className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
                   <input
                     type="search"
-                    disabled
-                    aria-label="Cari latihan (belum tersedia)"
-                    placeholder="Cari latihan Anda di sini…"
+                    disabled={!onCari}
+                    value={onCari ? (cari ?? '') : undefined}
+                    onChange={onCari ? e => onCari(e.target.value) : undefined}
+                    aria-label={onCari ? placeholderCari : `${placeholderCari} (belum tersedia)`}
+                    placeholder={placeholderCari}
                     className="min-h-[52px] w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 text-base placeholder:text-muted disabled:cursor-not-allowed"
                   />
                 </div>

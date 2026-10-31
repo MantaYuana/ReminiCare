@@ -30,7 +30,6 @@ next-env.d.ts
 
 .kiro/
 
-*.md
 spec/
 
 # Scripts helper

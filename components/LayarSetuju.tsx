@@ -53,6 +53,7 @@ export default function LayarSetuju({ onSetuju }: PropsLayarSetuju) {
 
       {/* Tombol dengarkan */}
       <button
+        type="button"
         onClick={handleDengarkan}
         className="btn-sekunder bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400 self-start"
       >

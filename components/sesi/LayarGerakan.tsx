@@ -71,7 +71,7 @@ export default function LayarGerakan({
 
           {/* Indikator keyakinan */}
           <div className="w-48 mt-4" role="meter" aria-label={`Keyakinan ${Math.round(skor * 100)}%`} aria-valuenow={Math.round(skor * 100)} aria-valuemin={0} aria-valuemax={100}>
-            <div className="flex justify-between text-sm mb-1">
+            <div className="flex justify-between text-base mb-1">
               <span>Keyakinan</span>
               <span>{Math.round(skor * 100)}%</span>
             </div>
@@ -84,8 +84,8 @@ export default function LayarGerakan({
           </div>
         </div>
 
-        {/* FPS kecil di pojok */}
-        <p className="absolute top-4 left-4 text-xs opacity-50">{fps} fps</p>
+        {/* FPS kecil di pojok — dekoratif, tidak kritis */}
+        <p className="absolute top-4 left-4 text-base opacity-50" aria-hidden="true">{fps} fps</p>
 
         {/* Tombol berhenti */}
         <button

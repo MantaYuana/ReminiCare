@@ -54,17 +54,17 @@ export default function LayarRingkasan({
       {/* Statistik sesi */}
       <div className="w-full grid grid-cols-2 gap-4">
         <div className="bg-gray-50 rounded-xl p-4 text-center">
-          <p className="text-sm text-gray-500">Total repetisi</p>
+          <p className="text-base text-gray-500">Total repetisi</p>
           <p className="text-4xl font-bold">{totalRep}</p>
         </div>
         <div className="bg-gray-50 rounded-xl p-4 text-center">
-          <p className="text-sm text-gray-500">Repetisi benar</p>
+          <p className="text-base text-gray-500">Repetisi benar</p>
           <p className="text-4xl font-bold">{repBenar}</p>
         </div>
       </div>
 
       <div className="w-full bg-gray-50 rounded-xl p-4 text-center">
-        <p className="text-sm text-gray-500">Persentase benar</p>
+        <p className="text-base text-gray-500">Persentase benar</p>
         <p className="text-4xl font-bold text-blue-600">{pctBenar}%</p>
       </div>
 
@@ -95,12 +95,12 @@ export default function LayarRingkasan({
                 aria-label={label}
               >
                 <span className="text-2xl" aria-hidden="true">{ikon}</span>
-                <span className="text-sm">{label}</span>
+                <span className="text-base">{label}</span>
               </button>
             ))}
           </div>
           {nyeriSudahDipilih && (
-            <p className="text-sm text-green-600 mt-2 text-center">Terima kasih atas responnya.</p>
+            <p className="text-base text-green-600 mt-2 text-center" role="status">Terima kasih atas responnya.</p>
           )}
         </div>
       )}

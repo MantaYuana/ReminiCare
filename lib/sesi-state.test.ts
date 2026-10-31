@@ -146,6 +146,17 @@ describe('sesi-state', () => {
     // gerakan 1: 3 rep, gerakan 2: 2 rep → total 5
     assert.equal(layar.totalRep, 5);
   });
+
+  it('totalRep tidak berlipat saat hitungan naik 1 per event', () => {
+    const awal = mulaiLayar(false);
+    const { layar } = jalankan(awal, [
+      { t: 'suaraSiap' }, { t: 'kameraSiap' }, { t: 'siap' },
+      { t: 'kalibrasi', ok: true },
+      { t: 'repetisi', hitungan: 1 },
+      { t: 'repetisi', hitungan: 2 },
+    ]);
+    assert.equal(layar.totalRep, 2);
+  });
 });
 
 describe('juru suara', () => {

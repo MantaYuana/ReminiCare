@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { pesanGalat } from '../../lib/supabase';
-import { mulaiLoginGoogle } from '../../lib/google';
-import type { PeranDaftar } from '../../lib/google';
+import { masukGoogle, pesanGalat } from '../../lib/supabase';
 import AuthLayout, { IkonGoogle, useAlihkanBilaMasuk } from '../../components/AuthLayout';
+
+type PeranDaftar = 'fisioterapis' | 'pasien';
 
 const NAMA_PERAN: Record<PeranDaftar, string> = {
   fisioterapis: 'Fisioterapis',
@@ -13,7 +13,7 @@ const NAMA_PERAN: Record<PeranDaftar, string> = {
 };
 
 export default function Page() {
-  const memeriksa = useAlihkanBilaMasuk();
+  const [status] = useAlihkanBilaMasuk();
   const [peran, setPeran] = useState<PeranDaftar | ''>('');
   const [galat, setGalat] = useState('');
   const [sibuk, setSibuk] = useState(false);
@@ -22,7 +22,7 @@ export default function Page() {
     if (!peran) return;
     setGalat('');
     setSibuk(true);
-    const { error } = await mulaiLoginGoogle(peran);
+    const { error } = await masukGoogle({ peran });
     if (error) {
       setGalat(pesanGalat(error));
       setSibuk(false);
@@ -31,7 +31,7 @@ export default function Page() {
 
   return (
     <AuthLayout>
-      {memeriksa ? (
+      {status === 'memeriksa' ? (
         <p className="rc-sub text-center" role="status">Memuat…</p>
       ) : (
         <>

@@ -4,22 +4,31 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { cekPeran } from '../lib/supabase';
+import { ruteUntuk } from '../lib/arah';
 
-/** Akun yang sudah masuk langsung dialihkan ke beranda perannya. */
-export function useAlihkanBilaMasuk(): boolean {
+export type StatusMasuk = 'memeriksa' | 'siap' | 'tanpa_peran';
+
+/**
+ * Akun yang sudah masuk langsung dialihkan ke beranda perannya.
+ * `tanpa_peran` (sudah login Google, belum memilih peran) dikembalikan ke halaman
+ * supaya bisa menampilkan PilihPeran; `setStatus` untuk mengembalikan ke 'siap' setelah keluar.
+ */
+export function useAlihkanBilaMasuk(): [StatusMasuk, (s: StatusMasuk) => void] {
   const router = useRouter();
-  const [memeriksa, setMemeriksa] = useState(true);
+  const [status, setStatus] = useState<StatusMasuk>('memeriksa');
 
   useEffect(() => {
+    let batal = false;
     cekPeran().then(peran => {
-      const jenis: string = peran.jenis;   // 'pasien_baru' baru ada di kontrak V9
-      if (jenis === 'terapis') router.replace('/terapis');
-      else if (jenis === 'pasien' || jenis === 'pasien_baru') router.replace('/pasien');
-      else setMemeriksa(false);
+      if (batal) return;
+      const rute = ruteUntuk(peran, null);
+      if (rute) router.replace(rute);
+      else setStatus(peran.jenis === 'tanpa_peran' ? 'tanpa_peran' : 'siap');
     });
+    return () => { batal = true; };
   }, [router]);
 
-  return memeriksa;
+  return [status, setStatus];
 }
 
 export function Logo({ className = '' }: { className?: string }) {

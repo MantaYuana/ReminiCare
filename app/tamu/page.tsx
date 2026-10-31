@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { suara } from '../../lib/suara';
+import { bacaJson, tulisJson } from '../../lib/lokal';
+import FormResep from '../../components/FormResep';
+import type { ResepTamu } from '../../components/FormResep';
 import Sesi from '../../components/Sesi';
 import DashboardShell from '../../components/DashboardShell';
 import type { ItemNav } from '../../components/DashboardShell';
 import BannerSambutan from '../../components/BannerSambutan';
-import { IkonBeranda, IkonAkun, IkonKeluar, IkonLengan } from '../../components/ikon';
-import type { Sisi } from '../../lib/kinematik/tipe';
+import { IkonBeranda, IkonAkun, IkonKeluar } from '../../components/ikon';
 import { AMBANG_VERSI, SUARA_CONDONG } from '../../lib/kinematik/tipe';
 
 const LANGKAH = [
@@ -25,37 +27,35 @@ const MENU_BAWAH: ItemNav[] = [
   { label: 'Kembali ke login', ikon: <IkonKeluar />, href: '/' },
 ];
 
-// Catatan: form resep tamu (Task 3) menggantikan pemilihan lengan ini
-// setelah FormResep mode="tamu" dari Pindra tersedia.
 export default function Page() {
-  const [sisi, setSisi] = useState<Sisi | null>(null);
+  const [resep, setResep] = useState<ResepTamu | null>(null);
+  // Isian terakhir dibaca setelah mount supaya HTML server dan klien sama (tanpa hydration mismatch)
+  const [awal, setAwal] = useState<ResepTamu | null | undefined>(undefined);
 
-  async function mulai(s: Sisi) {
-    await suara.buka();                  // harus dari ketukan pengguna
-    setSisi(s);
+  useEffect(() => { setAwal(bacaJson<ResepTamu | null>('rc_tamu', null)); }, []);
+
+  function handleKirim(r: ResepTamu) {
+    void suara.buka();                     // sinkron dari ketukan; jangan ada await sebelumnya
+    tulisJson('rc_tamu', r);
+    setAwal(r);
+    setResep(r);
   }
 
-  if (sisi) {
+  if (resep) {
     return (
       <Sesi
         resep={{
-          gerakan: ['jangkau_depan'],
-          repetisi: 5,
+          ...resep,
           sesi_per_minggu: 3,
-          toleransi_batang: 'normal',
-          toleransi_bahu: 'normal',
-          durasi_persen: 30,
-          mode_koreksi: 'penuh',
-          kalimat_condong: 'sandaran',
           kandidat_condong: 'a',
           suara_condong: SUARA_CONDONG,
           ambang_versi: AMBANG_VERSI,
-          sisi,
+          sisi: resep.sisi_terdampak,
         }}
         simpan={false}
         tamu
         kembali="/tamu"
-        onSelesai={() => setSisi(null)}
+        onSelesai={() => setResep(null)}
       />
     );
   }
@@ -65,28 +65,14 @@ export default function Page() {
       <div className="mx-auto flex max-w-4xl flex-col gap-6">
         <BannerSambutan
           judul="Selamat datang, Tamu"
-          teks="Coba latihan lengan dengan panduan kamera dan suara. Di mode tamu, hasil latihan tidak disimpan."
+          teks="Atur latihan, lalu coba dengan panduan kamera dan suara. Di mode tamu, hasil latihan tidak disimpan."
         />
 
-        <section aria-labelledby="judul-lengan" className="flex flex-col gap-3">
-          <h2 id="judul-lengan" className="text-xl font-semibold text-brand-700">Pilih lengan yang dilatih</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {(['kiri', 'kanan'] as Sisi[]).map(s => (
-              <button
-                key={s}
-                onClick={() => mulai(s)}
-                className="group flex min-h-[96px] items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-brand-700 hover:bg-brand-50 motion-reduce:transition-none"
-              >
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 group-hover:bg-white">
-                  <IkonLengan className={`h-8 w-8 ${s === 'kiri' ? '-scale-x-100' : ''}`} />
-                </span>
-                <span>
-                  <span className="block text-lg font-semibold">Lengan {s}</span>
-                  <span className="block text-base text-muted">Mulai latihan jangkau ke depan</span>
-                </span>
-              </button>
-            ))}
-          </div>
+        <section aria-labelledby="judul-resep" className="flex flex-col gap-3">
+          <h2 id="judul-resep" className="text-xl font-semibold text-brand-700">Atur latihan</h2>
+          {awal === undefined
+            ? <p className="rc-sub" role="status">Memuat…</p>
+            : <FormResep mode="tamu" pasien={awal} onKirim={handleKirim} />}
         </section>
 
         <section aria-labelledby="judul-langkah" className="flex flex-col gap-3">

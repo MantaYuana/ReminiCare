@@ -2,10 +2,11 @@
 
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { pesanGalat } from '../lib/supabase';
-import { mulaiLoginGoogle } from '../lib/google';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { cekPeran, masukGoogle, pesanGalat } from '../lib/supabase';
+import { ruteUntuk } from '../lib/arah';
 import AuthLayout, { IkonGoogle, useAlihkanBilaMasuk } from '../components/AuthLayout';
+import PilihPeran from '../components/PilihPeran';
 
 // Galat dari /auth/selesai datang lewat ?galat=, pesan sukses lewat ?pesan= (SPEC §10.1)
 const PESAN_URL: Record<string, string> = {
@@ -15,7 +16,8 @@ const PESAN_URL: Record<string, string> = {
 
 function Isi() {
   const params = useSearchParams();
-  const memeriksa = useAlihkanBilaMasuk();
+  const router = useRouter();
+  const [status, setStatus] = useAlihkanBilaMasuk();
   const [galat, setGalat] = useState('');
   const [sibuk, setSibuk] = useState(false);
 
@@ -25,15 +27,24 @@ function Isi() {
   async function handleGoogle() {
     setGalat('');
     setSibuk(true);
-    const { error } = await mulaiLoginGoogle();
+    const { error } = await masukGoogle();
     if (error) {
       setGalat(pesanGalat(error));
       setSibuk(false);
     }
   }
 
-  if (memeriksa) {
+  if (status === 'memeriksa') {
     return <p className="rc-sub text-center" role="status">Memuat…</p>;
+  }
+
+  if (status === 'tanpa_peran') {
+    return (
+      <PilihPeran
+        onSelesai={async () => router.replace(ruteUntuk(await cekPeran(), null) ?? '/')}
+        onKeluar={() => setStatus('siap')}
+      />
+    );
   }
 
   return (

@@ -75,22 +75,17 @@ export default function Page() {
 
   if (tampil === 'memuat') {
     return (
-      <main className="flex items-center justify-center min-h-screen">
-        <p className="text-base text-gray-500">Memuat…</p>
+      <main className="rc-wrap min-h-screen items-center justify-center text-center">
+        <p className="rc-sub" role="status">Memuat…</p>
       </main>
     );
   }
 
   if (tampil === 'galat') {
     return (
-      <main className="flex flex-col items-center justify-center gap-6 min-h-screen p-6">
-        <div role="alert" className="w-full max-w-sm bg-red-50 border border-red-300 rounded-xl p-4 text-base">
-          {galat}
-        </div>
-        <button
-          onClick={() => router.push('/')}
-          className="btn-sekunder bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-        >
+      <main className="rc-wrap min-h-screen justify-center">
+        <div role="alert" className="rc-alert">{galat}</div>
+        <button onClick={() => router.push('/')} className="rc-btn-2">
           Kembali ke beranda
         </button>
       </main>
@@ -100,12 +95,7 @@ export default function Page() {
   return (
     <main>
       {galat && (
-        <div
-          role="alert"
-          className="mx-6 mt-6 bg-red-50 border border-red-300 rounded-xl p-4 text-base text-red-700"
-        >
-          {galat}
-        </div>
+        <div role="alert" className="rc-alert mx-5 mt-6">{galat}</div>
       )}
       <LayarSetuju onSetuju={handleSetuju} />
     </main>

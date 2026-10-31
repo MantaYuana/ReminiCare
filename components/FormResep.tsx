@@ -25,15 +25,30 @@ export type DataResepPasien = {
   [key: string]: unknown;
 };
 
+export type ResepTamu = {
+  sisi_terdampak: SisiTerdampak;
+  gerakan: JenisGerakan[];
+  repetisi: number;
+  toleransi_batang: TingkatToleransi;
+  toleransi_bahu: TingkatToleransi;
+  durasi_persen: number;
+  mode_koreksi: 'penuh' | 'mati';
+  kalimat_condong: PilihanKalimatCondong;
+};
+
 export interface FormResepProps {
+  mode?: 'baru' | 'edit' | 'tamu';
   pasien?: DataResepPasien | null;
   onBerhasil?: (pasienId: string) => void;
   onBatal?: () => void;
+  onKirim?: (r: ResepTamu) => void;
 }
 
-export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProps) {
+export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }: FormResepProps) {
   const router = useRouter();
-  const isEdit = Boolean(pasien?.id);
+  const modeAktual = mode ?? (pasien?.id ? 'edit' : 'baru');
+  const isEdit = modeAktual === 'edit';
+  const isTamu = modeAktual === 'tamu';
 
   // Catatan siklus hidup: komponen ini menginisialisasi state dari props.pasien saat dipasang (mount).
   // Jika data pasien dimuat secara asinkron dari server/DB, komponen pemanggil wajib menyertakan key unik,
@@ -46,7 +61,8 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
     pasien?.gerakan && pasien.gerakan.length > 0 ? pasien.gerakan : ['jangkau_depan']
   );
   // Hindari value={NaN} dengan mengizinkan string kosong saat input dikosongkan
-  const [repetisi, setRepetisi] = useState<number | ''>(pasien?.repetisi ?? 10);
+  // Mode tamu: repetisi bawaan 5, bukan 10
+  const [repetisi, setRepetisi] = useState<number | ''>(pasien?.repetisi ?? (isTamu ? 5 : 10));
   const [sesiPerMinggu, setSesiPerMinggu] = useState<number | ''>(pasien?.sesi_per_minggu ?? 3);
   const [toleransiBatang, setToleransiBatang] = useState<TingkatToleransi>(pasien?.toleransi_batang ?? 'normal');
   const [toleransiBahu, setToleransiBahu] = useState<TingkatToleransi>(pasien?.toleransi_bahu ?? 'normal');
@@ -87,12 +103,16 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
     setPesanSukses(null);
 
     // 1. Validasi klien persis constraint DB
-    const namaBersih = namaPanggilan.trim();
-    if (namaBersih.length < 1 || namaBersih.length > 40) {
-      sedangSubmitRef.current = false;
-      setGalat('Nama panggilan harus diisi antara 1 sampai 40 karakter.');
-      return;
+    // Mode tamu: nama panggilan tidak divalidasi
+    if (!isTamu) {
+      const namaBersih = namaPanggilan.trim();
+      if (namaBersih.length < 1 || namaBersih.length > 40) {
+        sedangSubmitRef.current = false;
+        setGalat('Nama panggilan harus diisi antara 1 sampai 40 karakter.');
+        return;
+      }
     }
+    const namaBersih = isTamu ? '' : namaPanggilan.trim();
 
     if (sisiTerdampak !== 'kiri' && sisiTerdampak !== 'kanan') {
       sedangSubmitRef.current = false;
@@ -113,11 +133,15 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
       return;
     }
 
-    const nSesiMinggu = Number(sesiPerMinggu);
-    if (sesiPerMinggu === '' || !Number.isInteger(nSesiMinggu) || nSesiMinggu < 1 || nSesiMinggu > 7) {
-      sedangSubmitRef.current = false;
-      setGalat('Frekuensi latihan harus berupa bilangan bulat antara 1 sampai 7 sesi per minggu.');
-      return;
+    // Mode tamu: sesi per minggu tidak divalidasi
+    let nSesiMinggu = 3;
+    if (!isTamu) {
+      nSesiMinggu = Number(sesiPerMinggu);
+      if (sesiPerMinggu === '' || !Number.isInteger(nSesiMinggu) || nSesiMinggu < 1 || nSesiMinggu > 7) {
+        sedangSubmitRef.current = false;
+        setGalat('Frekuensi latihan harus berupa bilangan bulat antara 1 sampai 7 sesi per minggu.');
+        return;
+      }
     }
 
     if (!['abaikan', 'longgar', 'normal', 'ketat'].includes(toleransiBatang)) {
@@ -139,13 +163,13 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
       return;
     }
 
-    // Validasi mode koreksi: formulir baru hanya Penuh atau Mati; mode edit mempertahankan 'ringkasan' jika belum diubah
+    // Validasi mode koreksi: formulir baru dan tamu hanya Penuh atau Mati; mode edit mempertahankan 'ringkasan' jika belum diubah
     if (modeKoreksi !== 'penuh' && modeKoreksi !== 'mati' && modeKoreksi !== 'ringkasan') {
       sedangSubmitRef.current = false;
       setGalat('Mode koreksi pada formulir hanya boleh Penuh atau Mati.');
       return;
     }
-    if (!isEdit && modeKoreksi !== 'penuh' && modeKoreksi !== 'mati') {
+    if ((!isEdit || isTamu) && modeKoreksi !== 'penuh' && modeKoreksi !== 'mati') {
       sedangSubmitRef.current = false;
       setGalat('Mode koreksi pada formulir baru hanya boleh Penuh atau Mati.');
       return;
@@ -154,6 +178,25 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
     if (kalimatCondong !== 'sandaran' && kalimatCondong !== 'tegak') {
       sedangSubmitRef.current = false;
       setGalat('Pilihan kalimat koreksi condong tidak valid.');
+      return;
+    }
+
+    // Mode tamu: panggil onKirim secara sinkron
+    if (isTamu) {
+      sedangSubmitRef.current = false;
+      if (onKirim) {
+        const nilaiTamu: ResepTamu = {
+          sisi_terdampak: sisiTerdampak,
+          gerakan,
+          repetisi: nRepetisi,
+          toleransi_batang: toleransiBatang,
+          toleransi_bahu: toleransiBahu,
+          durasi_persen: nDurasi,
+          mode_koreksi: modeKoreksi as 'penuh' | 'mati',
+          kalimat_condong: kalimatCondong,
+        };
+        onKirim(nilaiTamu);
+      }
       return;
     }
 
@@ -291,34 +334,36 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
         </div>
       )}
 
-      {/* 1. Nama Panggilan */}
-      <div className="space-y-2">
-        <label htmlFor="field-nama" className="block font-semibold text-gray-900 text-lg">
-          Nama Panggilan Pasien <span className="text-red-600">*</span>
-        </label>
-        <p className="text-lg text-gray-600" id="hint-nama">
-          Nama sapaan pasien untuk instruksi suara ramah (1–40 karakter).
-        </p>
-        <input
-          id="field-nama"
-          type="text"
-          maxLength={40}
-          value={namaPanggilan}
-          onChange={(e) => setNamaPanggilan(e.target.value)}
-          aria-describedby="hint-nama"
-          required
-          placeholder="Contoh: Pak Wayan"
-          className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
-        />
-      </div>
+      {/* 1. Nama Panggilan — disembunyikan di mode tamu */}
+      {!isTamu && (
+        <div className="space-y-2">
+          <label htmlFor="field-nama" className="block font-semibold text-gray-900 text-lg">
+            Nama Panggilan Pasien <span className="text-red-600">*</span>
+          </label>
+          <p className="text-lg text-gray-600" id="hint-nama">
+            Nama sapaan pasien untuk instruksi suara ramah (1–40 karakter).
+          </p>
+          <input
+            id="field-nama"
+            type="text"
+            maxLength={40}
+            value={namaPanggilan}
+            onChange={(e) => setNamaPanggilan(e.target.value)}
+            aria-describedby="hint-nama"
+            required
+            placeholder="Contoh: Pak Wayan"
+            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
+          />
+        </div>
+      )}
 
       {/* 2. Sisi Terdampak */}
       <fieldset className="space-y-2">
         <legend className="block font-semibold text-gray-900 text-lg">
-          Sisi Lengan Terdampak Stroke <span className="text-red-600">*</span>
+          {isTamu ? 'Lengan yang Dilatih' : 'Sisi Lengan Terdampak Stroke'} <span className="text-red-600">*</span>
         </legend>
         <p className="text-lg text-gray-600">
-          Sisi tubuh hemiparesis yang dilatih menggunakan kamera.
+          {isTamu ? 'Pilih lengan yang ingin Anda latih.' : 'Sisi tubuh hemiparesis yang dilatih menggunakan kamera.'}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <label className={`min-h-[44px] flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
@@ -332,7 +377,7 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
               onChange={() => setSisiTerdampak('kanan')}
               className="w-6 h-6 text-blue-600"
             />
-            <span className="text-lg">Lengan Kanan</span>
+            <span className="text-lg">{isTamu ? 'Lengan kanan' : 'Lengan Kanan'}</span>
           </label>
           <label className={`min-h-[44px] flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
             sisiTerdampak === 'kiri' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
@@ -345,7 +390,7 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
               onChange={() => setSisiTerdampak('kiri')}
               className="w-6 h-6 text-blue-600"
             />
-            <span className="text-lg">Lengan Kiri</span>
+            <span className="text-lg">{isTamu ? 'Lengan kiri' : 'Lengan Kiri'}</span>
           </label>
         </div>
       </fieldset>
@@ -387,12 +432,14 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
       </fieldset>
 
       {/* 4. Target Repetisi & Sesi per Minggu */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className={isTamu ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}>
         <div className="space-y-2">
           <label htmlFor="field-repetisi" className="block font-semibold text-gray-900 text-lg">
             Target Repetisi per Gerakan <span className="text-red-600">*</span>
           </label>
-          <p className="text-lg text-gray-600" id="hint-repetisi">Rentang 5–20 repetisi (bawaan: 10).</p>
+          <p className="text-lg text-gray-600" id="hint-repetisi">
+            {isTamu ? 'Rentang 5–20 repetisi (bawaan: 5).' : 'Rentang 5–20 repetisi (bawaan: 10).'}
+          </p>
           <input
             id="field-repetisi"
             type="number"
@@ -410,27 +457,29 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
           />
         </div>
 
-        <div className="space-y-2">
-          <label htmlFor="field-sesi-minggu" className="block font-semibold text-gray-900 text-lg">
-            Target Sesi per Minggu <span className="text-red-600">*</span>
-          </label>
-          <p className="text-lg text-gray-600" id="hint-sesi-minggu">Rentang 1–7 sesi dalam seminggu (bawaan: 3).</p>
-          <input
-            id="field-sesi-minggu"
-            type="number"
-            min={1}
-            max={7}
-            step={1}
-            value={sesiPerMinggu}
-            onChange={(e) => {
-              const val = e.target.value;
-              setSesiPerMinggu(val === '' ? '' : parseInt(val, 10));
-            }}
-            aria-describedby="hint-sesi-minggu"
-            required
-            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
-          />
-        </div>
+        {!isTamu && (
+          <div className="space-y-2">
+            <label htmlFor="field-sesi-minggu" className="block font-semibold text-gray-900 text-lg">
+              Target Sesi per Minggu <span className="text-red-600">*</span>
+            </label>
+            <p className="text-lg text-gray-600" id="hint-sesi-minggu">Rentang 1–7 sesi dalam seminggu (bawaan: 3).</p>
+            <input
+              id="field-sesi-minggu"
+              type="number"
+              min={1}
+              max={7}
+              step={1}
+              value={sesiPerMinggu}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSesiPerMinggu(val === '' ? '' : parseInt(val, 10));
+              }}
+              aria-describedby="hint-sesi-minggu"
+              required
+              className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
+            />
+          </div>
+        )}
       </div>
 
       {/* 5. Toleransi Kompensasi Batang & Bahu */}
@@ -499,13 +548,13 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
         />
       </div>
 
-      {/* 7. Mode Koreksi (Hanya Penuh / Mati di P0; mempertahankan 'ringkasan' bila nilai DB asli) */}
+      {/* 7. Mode Koreksi (Hanya Penuh / Mati di P0 dan mode tamu; mempertahankan 'ringkasan' bila nilai DB asli) */}
       <fieldset className="space-y-2">
         <legend className="block font-semibold text-gray-900 text-lg">
           Mode Koreksi Suara <span className="text-red-600">*</span>
         </legend>
         <p className="text-lg text-gray-600">
-          Di fase P0, formulir menyediakan pilihan mode Penuh atau Mati.
+          {isTamu ? 'Pilih apakah Anda ingin mendengar koreksi suara atau berlatih tanpa koreksi.' : 'Di fase P0, formulir menyediakan pilihan mode Penuh atau Mati.'}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <label className={`min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
@@ -541,8 +590,8 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
             </div>
           </label>
 
-          {/* Opsi nonaktif bila nilai awal dari database adalah 'ringkasan' (P1) */}
-          {modeAsli === 'ringkasan' && (
+          {/* Opsi nonaktif bila nilai awal dari database adalah 'ringkasan' (P1) — tidak tampil di mode tamu */}
+          {!isTamu && modeAsli === 'ringkasan' && (
             <div className={`sm:col-span-2 min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl ${
               modeKoreksi === 'ringkasan' ? 'border-gray-400 bg-gray-100 font-semibold' : 'border-gray-200 bg-gray-50 opacity-60'
             }`}>
@@ -618,6 +667,8 @@ export default function FormResep({ pasien, onBerhasil, onBatal }: FormResepProp
         >
           {sedangSimpan ? (
             <span>Menyimpan resep...</span>
+          ) : isTamu ? (
+            <span>Mulai latihan</span>
           ) : isEdit ? (
             <span>Simpan Perubahan Resep</span>
           ) : (

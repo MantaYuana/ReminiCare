@@ -117,7 +117,7 @@ export function buatResampler(hz = HZ): { dorong(s: Sampel): Sampel[] } {
   return {
     dorong(cur: Sampel): Sampel[] {
       const hasil: Sampel[] = [];
-      if (prev === null) { prev = cur; t0 = cur.t; k = 0; return hasil; }
+      if (prev === null || cur.t - prev.t > 500) { prev = cur; t0 = cur.t; k = 0; return hasil; }
 
       // Generate grid points that fall in (prev.t, cur.t]
       while (true) {

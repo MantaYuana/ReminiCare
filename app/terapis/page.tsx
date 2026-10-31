@@ -28,6 +28,8 @@ export default function DasborTerapisPage() {
   const [daftarPasien, setDaftarPasien] = useState<BarisPrioritas[]>([]);
   const [sedangMemuat, setSedangMemuat] = useState<boolean>(false);
   const [sudahMuat, setSudahMuat] = useState<boolean>(false);
+  // true hanya setelah daftar berhasil dimuat; sudahMuat ikut true saat gagal
+  const [daftarSah, setDaftarSah] = useState<boolean>(false);
   const [galat, setGalat] = useState<string | null>(null);
 
   // State untuk tombol data contoh
@@ -72,6 +74,7 @@ export default function DasborTerapisPage() {
       }
 
       setDaftarPasien((data as BarisPrioritas[]) || []);
+      setDaftarSah(true);
       setSudahMuat(true);
     } catch (err: unknown) {
       if (!aktifRef.current || seqRef.current !== seq) {
@@ -172,7 +175,8 @@ export default function DasborTerapisPage() {
     }
   };
 
-  // Hitung apakah ada data contoh
+  // Hitung apakah ada data contoh. Hanya bermakna bila daftarSah: sebelum itu daftar kosong,
+  // dan tombol akan memanggil isi_contoh tanpa konfirmasi atur ulang.
   const adaContoh = daftarPasien.some(p => p.is_sintetis);
 
   if (sedangMemeriksa) {
@@ -203,7 +207,7 @@ export default function DasborTerapisPage() {
             <button
               type="button"
               onClick={adaContoh ? () => setKonfirmasiAturUlang(true) : jalankanIsiContoh}
-              disabled={sedangIsiContoh}
+              disabled={sedangIsiContoh || !daftarSah}
               aria-label={adaContoh ? "Atur ulang data contoh" : "Isi data contoh"}
               className="min-h-[44px] min-w-[44px] px-4 py-2 border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-2 text-lg"
             >

@@ -45,6 +45,8 @@ export function petakanPeran(
  */
 export function lanjutAman(l: string | null | undefined): string | null {
   if (!l) return null;
+  // Parser URL browser membuang tab/newline, jadi `/\t/evil.com` menjadi `//evil.com`: tolak semua karakter kontrol
+  if (/[\x00-\x1f\x7f]/.test(l)) return null;
   // Harus awali `/` tapi bukan `//` atau `/\`
   if (/^\/(?![\/\\])/.test(l)) {
     return l;

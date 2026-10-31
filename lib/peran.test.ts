@@ -16,7 +16,8 @@ test('bangunRedirect: peran + lanjut internal', () => {
 });
 
 test('bangunRedirect: lanjut eksternal dibuang', () => {
-  for (const l of ['//evil.com', '/\\evil.com', 'https://evil.com', 'evil.com']) {
+  // tab/newline dibuang parser URL browser: '/\t/evil.com' menjadi '//evil.com'
+  for (const l of ['//evil.com', '/\\evil.com', 'https://evil.com', 'evil.com', '/\t/evil.com', '/\n/evil.com', '/\r\n/evil.com']) {
     assert.equal(bangunRedirect('https://x.app', { lanjut: l }), 'https://x.app/auth/selesai');
     assert.equal(lanjutAman(l), null);
   }

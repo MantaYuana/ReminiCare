@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* ReminiCare – Global styles
+   NFR-6: font dasar ≥ 18px, tombol utama ≥ 64px, tombol sekunder ≥ 44×44px */
+
+:root {
+  --font-size-base: 18px;
+}
+
+html {
+  font-size: var(--font-size-base);
+}
+
+body {
+  @apply bg-white text-gray-900;
+  font-size: 1rem; /* 18px via html font-size */
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Pastikan fokus terlihat jelas (NFR-6 aksesibilitas) */
+:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Tombol utama ≥ 64px tinggi */
+.btn-utama {
+  @apply min-h-[64px] px-6 py-3 text-lg font-semibold rounded-xl;
+}
+
+/* Tombol sekunder dan nyeri ≥ 44×44px */
+.btn-sekunder {
+  @apply min-h-[44px] min-w-[44px] px-4 py-2 rounded-lg;
+}

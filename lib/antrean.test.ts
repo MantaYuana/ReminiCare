@@ -25,7 +25,7 @@ function buatBarisSesi(id: string): BarisSesi {
       suara_condong: false,
       ambang_versi: 'v1',
     },
-    baseline: {},
+    baseline: {} as any,
     rep_total: 5,
     rep_terukur: 4,
     rep_terkompensasi: 1,

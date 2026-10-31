@@ -1,42 +1,52 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { suara } from '../../lib/suara.ts';
+import type { KodeKlip } from '../../lib/suara.ts';
 
 interface PropsLayarKalibrasi {
-  onSelesai(ok?: boolean): void;
+  onSelesai(): void;
 }
 
 const HITUNG_MUNDUR = 5; // detik
 
+// Dipasang ulang (key) oleh Sesi tiap percobaan, jadi hitung mundur mulai dari 5 lagi.
 export default function LayarKalibrasi({ onSelesai }: PropsLayarKalibrasi) {
   const [detik, setDetik] = useState(HITUNG_MUNDUR);
+  const selesaiRef = useRef(onSelesai);
+  selesaiRef.current = onSelesai;
+  const sudahRef = useRef(false);
 
   useEffect(() => {
     if (detik <= 0) {
-      onSelesai(true);
+      if (!sudahRef.current) {
+        sudahRef.current = true;
+        selesaiRef.current();
+      }
       return;
     }
+    suara.ucap(`N-${detik}` as KodeKlip);
     const id = setTimeout(() => setDetik(d => d - 1), 1000);
     return () => clearTimeout(id);
-  }, [detik, onSelesai]);
+  }, [detik]);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-8 p-6 min-h-[60vh]">
-      <h1 className="text-2xl font-bold">Kalibrasi</h1>
-      <p className="text-base text-gray-600 text-center">
-        Tetap diam dalam posisi yang nyaman
-      </p>
+    <div className="rc-wrap pt-4! items-center text-center">
+      <div>
+        <h1 className="rc-judul">Diam sebentar</h1>
+        <p className="rc-sub">Duduk tenang dan jangan bergerak sampai hitungan selesai.</p>
+      </div>
 
-      {/* Hitung mundur besar */}
       <div
-        className="text-9xl font-bold text-blue-600 tabular-nums"
+        className="flex h-40 w-40 items-center justify-center rounded-full border-8 border-brand-700 bg-white text-7xl font-bold tabular-nums text-brand-700"
+        role="timer"
         aria-live="polite"
         aria-label={`${detik} detik tersisa`}
       >
         {detik}
       </div>
 
-      <p className="text-base text-gray-500">detik tersisa</p>
+      <p className="text-base text-muted">detik tersisa</p>
     </div>
   );
 }

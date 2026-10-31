@@ -1,33 +1,35 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, cekPeran } from '../../../lib/supabase';
 import { bacaResep } from '../../../lib/lokal';
-import { suara } from '../../../lib/suara';
 import Sesi from '../../../components/Sesi';
 import type { ResepSalinan } from '../../../lib/kinematik/mesin';
 import type { Sisi } from '../../../lib/kinematik/tipe';
+import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI } from '../../../lib/kinematik/tipe';
 
 type ResepDenganSisi = ResepSalinan & { sisi: Sisi };
 
-function KontenSesi() {
-  const router       = useRouter();
-  const [resep, setResep]     = useState<ResepDenganSisi | null>(null);
+const KOLOM_RESEP =
+  'id, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong';
+
+export default function Page() {
+  const router = useRouter();
+  const [resep, setResep]       = useState<ResepDenganSisi | null>(null);
   const [pasienId, setPasienId] = useState<string | undefined>();
-  const [kembali, setKembali]  = useState('/pasien');
-  const [galat, setGalat]     = useState('');
-  const [loading, setLoading]  = useState(true);
+  const [galat, setGalat]       = useState('');
+  const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
     async function muat() {
       const peran = await cekPeran();
 
-      // Pasien biasa
+      // Daring: resep dari baris pasien yang terikat ke akun ini
       if (peran.jenis === 'pasien') {
         const { data } = await supabase
           .from('pasien')
-          .select('id, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong, kandidat_condong, suara_condong, ambang_versi')
+          .select(KOLOM_RESEP)
           .eq('id', peran.pasienId)
           .maybeSingle();
         if (data) {
@@ -41,9 +43,9 @@ function KontenSesi() {
             durasi_persen: data.durasi_persen,
             mode_koreksi: data.mode_koreksi,
             kalimat_condong: data.kalimat_condong,
-            kandidat_condong: data.kandidat_condong,
-            suara_condong: data.suara_condong,
-            ambang_versi: data.ambang_versi ?? 'v1',
+            kandidat_condong: KANDIDAT_CONDONG,
+            suara_condong: SUARA_CONDONG,
+            ambang_versi: AMBANG_VERSI,
           });
           setPasienId(peran.pasienId);
           setLoading(false);
@@ -51,7 +53,7 @@ function KontenSesi() {
         }
       }
 
-      // Luring — pakai resep lokal
+      // Luring: resep tersimpan di perangkat
       if (peran.jenis === 'luring') {
         const lokal = bacaResep();
         if (lokal) {
@@ -65,15 +67,21 @@ function KontenSesi() {
             durasi_persen: lokal.durasi_persen,
             mode_koreksi: lokal.mode_koreksi,
             kalimat_condong: lokal.kalimat_condong,
-          } as ResepDenganSisi);
+            kandidat_condong: KANDIDAT_CONDONG,
+            suara_condong: SUARA_CONDONG,
+            ambang_versi: AMBANG_VERSI,
+          });
           setPasienId(lokal.pasien_id);
           setLoading(false);
           return;
         }
+        setGalat('Resep belum tersimpan di ponsel ini. Sambungkan ke internet sekali untuk memuat resep.');
+        setLoading(false);
+        return;
       }
 
-      setGalat('Resep tidak ditemukan, hubungkan ke internet sekali untuk memuat resep.');
-      setLoading(false);
+      // Belum terikat ke resep, atau bukan akun pasien: kembali ke beranda
+      router.replace('/pasien');
     }
 
     muat();
@@ -81,22 +89,17 @@ function KontenSesi() {
 
   if (loading) {
     return (
-      <main className="flex items-center justify-center min-h-screen">
-        <p className="text-base text-gray-500">Memuat resep…</p>
+      <main className="rc-wrap min-h-screen items-center justify-center text-center">
+        <p className="rc-sub" role="status">Memuat resep…</p>
       </main>
     );
   }
 
   if (galat) {
     return (
-      <main className="flex flex-col items-center justify-center gap-6 min-h-screen p-6">
-        <div role="alert" className="w-full max-w-sm bg-red-50 border border-red-300 rounded-xl p-4 text-base">
-          {galat}
-        </div>
-        <button
-          onClick={() => router.push('/pasien')}
-          className="btn-sekunder bg-gray-100 rounded-xl hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-        >
+      <main className="rc-wrap min-h-screen justify-center">
+        <div role="alert" className="rc-alert">{galat}</div>
+        <button onClick={() => router.push('/pasien')} className="rc-btn-2">
           Kembali ke beranda
         </button>
       </main>
@@ -105,24 +108,5 @@ function KontenSesi() {
 
   if (!resep) return null;
 
-  return (
-    <Sesi
-      resep={resep}
-      pasienId={pasienId}
-      simpan={true}
-      kembali={kembali}
-    />
-  );
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={
-      <main className="flex items-center justify-center min-h-screen">
-        <p className="text-base text-gray-500">Memuat resep…</p>
-      </main>
-    }>
-      <KontenSesi />
-    </Suspense>
-  );
+  return <Sesi resep={resep} pasienId={pasienId} simpan kembali="/pasien" />;
 }

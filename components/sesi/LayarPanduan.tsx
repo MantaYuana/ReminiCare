@@ -2,52 +2,55 @@
 
 interface PropsLayarPanduan {
   bantuan: boolean;
+  gating: boolean;
   onSiap(): void;
-  videoRef?: React.RefObject<HTMLVideoElement | null>;
-  gating?: boolean;
 }
 
-export default function LayarPanduan({ bantuan, onSiap, videoRef, gating = false }: PropsLayarPanduan) {
+// Pratinjau kamera dirender oleh Sesi (satu <video> tetap terpasang untuk mesin pose).
+const PETUNJUK = [
+  'Duduk di kursi bersandaran, tanpa sandaran tangan',
+  'Letakkan ponsel setinggi dada, 1,5 sampai 2 meter di depan Anda',
+  'Hadap kamera; kepala sampai pangkuan harus terlihat',
+  'Posisi lanskap (mendatar) disarankan',
+];
+
+export default function LayarPanduan({ bantuan, gating, onSiap }: PropsLayarPanduan) {
   return (
-    <div className="flex flex-col items-center gap-6 p-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold">Panduan posisi</h1>
+    <div className="rc-wrap pt-4!">
+      <div>
+        <h1 className="rc-judul">Posisikan kamera</h1>
+        <p className="rc-sub">Pastikan Anda terlihat jelas di pratinjau di atas.</p>
+      </div>
 
       {bantuan && (
-        <div role="alert" className="w-full bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-base">
-          Kalibrasi gagal beberapa kali. Pastikan posisi Anda sesuai panduan di bawah.
+        <div role="alert" className="rc-info">
+          Kalibrasi belum berhasil beberapa kali. Periksa lagi posisi kamera dan duduk sesuai petunjuk, lalu coba lagi.
         </div>
       )}
 
-      {/* Pratinjau kamera */}
-      {videoRef && (
-        <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-            style={{ transform: 'scaleX(-1)' }}
-            aria-label="Pratinjau kamera"
-          />
-        </div>
-      )}
+      <div
+        role="status"
+        className={gating ? 'rc-info' : 'rc-ok'}
+      >
+        {gating ? 'Kamera belum melihat Anda dengan jelas. Geser posisi sampai kepala sampai pangkuan masuk bingkai.' : 'Posisi terlihat baik. Tekan Siap bila sudah nyaman.'}
+      </div>
 
-      {/* Petunjuk posisi */}
-      <ul className="w-full space-y-2 text-base list-disc list-inside">
-        <li>Gunakan kursi bersandaran tanpa sandaran tangan</li>
-        <li>Posisikan kamera setinggi dada</li>
-        <li>Jarak 1,5–2 meter dari kamera</li>
-        <li>Tampak depan, kepala sampai pangkuan terlihat</li>
-        <li>Lanskap (horizontal) disarankan</li>
+      <ul className="rc-card flex flex-col gap-3">
+        {PETUNJUK.map((t, i) => (
+          <li key={t} className="flex gap-3 text-base">
+            <span
+              aria-hidden="true"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-base font-bold text-brand-800"
+            >
+              {i + 1}
+            </span>
+            <span>{t}</span>
+          </li>
+        ))}
       </ul>
 
-      <button
-        onClick={onSiap}
-        disabled={gating}
-        className="btn-utama w-full bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {gating ? 'Posisikan tubuh ke dalam bingkai...' : 'Siap'}
+      <button onClick={onSiap} disabled={gating} className="rc-btn">
+        {gating ? 'Posisikan tubuh ke dalam bingkai' : 'Siap'}
       </button>
     </div>
   );

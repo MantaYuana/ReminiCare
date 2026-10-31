@@ -6,11 +6,42 @@
 begin;
 
 -- data uji: tanpa trigger daftar, profil dibuat lewat RPC daftar (V9)
-insert into auth.users (id, aud, role, email, raw_user_meta_data) values
-  ('aaaaaaaa-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@uji.local', '{"full_name":"Terapis A"}'),
-  ('bbbbbbbb-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'b@uji.local', '{"name":"Terapis B"}'),
-  ('dddddddd-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'p@uji.local', '{"full_name":"Pasien P"}'),
-  ('cccccccc-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'c@uji.local', '{}');
+insert into
+    auth.users (
+        id,
+        aud,
+        role,
+        email,
+        raw_user_meta_data
+    )
+values (
+        'aaaaaaaa-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        'a@uji.local',
+        '{"full_name":"Terapis A"}'
+    ),
+    (
+        'bbbbbbbb-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        'b@uji.local',
+        '{"name":"Terapis B"}'
+    ),
+    (
+        'dddddddd-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        'p@uji.local',
+        '{"full_name":"Pasien P"}'
+    ),
+    (
+        'cccccccc-0000-0000-0000-000000000000',
+        'authenticated',
+        'authenticated',
+        'c@uji.local',
+        '{}'
+    );
 
 do $$ begin
   perform set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000000","role":"authenticated"}', true);
@@ -38,9 +69,31 @@ do $$ begin
   assert not exists (select 1 from public.profil where id = 'cccccccc-0000-0000-0000-000000000000'), 'tanpa sign up = tanpa profil';
 end $$;
 
-insert into public.pasien (id, terapis_id, user_id, nama_panggilan, sisi_terdampak, gerakan) values
-  ('11111111-0000-0000-0000-000000000000', 'aaaaaaaa-0000-0000-0000-000000000000', 'dddddddd-0000-0000-0000-000000000000', 'Pasien A', 'kanan', '{jangkau_depan}'),
-  ('22222222-0000-0000-0000-000000000000', 'bbbbbbbb-0000-0000-0000-000000000000', null, 'Pasien B', 'kiri', '{jangkau_depan}');
+insert into
+    public.pasien (
+        id,
+        terapis_id,
+        user_id,
+        nama_panggilan,
+        sisi_terdampak,
+        gerakan
+    )
+values (
+        '11111111-0000-0000-0000-000000000000',
+        'aaaaaaaa-0000-0000-0000-000000000000',
+        'dddddddd-0000-0000-0000-000000000000',
+        'Pasien A',
+        'kanan',
+        '{jangkau_depan}'
+    ),
+    (
+        '22222222-0000-0000-0000-000000000000',
+        'bbbbbbbb-0000-0000-0000-000000000000',
+        null,
+        'Pasien B',
+        'kiri',
+        '{jangkau_depan}'
+    );
 
 set local role authenticated;
 
@@ -49,7 +102,10 @@ set local role authenticated;
 -- ==============================================================================
 
 -- terapis B
-select set_config('request.jwt.claims', '{"sub":"bbbbbbbb-0000-0000-0000-000000000000","role":"authenticated"}', true);
+select set_config (
+        'request.jwt.claims', '{"sub":"bbbbbbbb-0000-0000-0000-000000000000","role":"authenticated"}', true
+    );
+
 do $$ begin
   assert (select count(*) from public.pasien) = 1, 'B hanya melihat pasiennya';
   assert (select count(*) from public.v_prioritas) = 1, 'B: v_prioritas tanpa 42501, 1 baris';
@@ -62,7 +118,10 @@ do $$ begin
 end $$;
 
 -- terapis A: GRANT kolom menolak ubah user_id dan peran langsung
-select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000000","role":"authenticated"}', true);
+select set_config (
+        'request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000000","role":"authenticated"}', true
+    );
+
 do $$ begin
   begin
     update public.pasien set user_id = null where id = '11111111-0000-0000-0000-000000000000';
@@ -77,7 +136,10 @@ do $$ begin
 end $$;
 
 -- akun pasien P (terikat ke Pasien A)
-select set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-000000000000","role":"authenticated"}', true);
+select set_config (
+        'request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-000000000000","role":"authenticated"}', true
+    );
+
 do $$ begin
   assert (select count(*) from public.pasien) = 1, 'P melihat pasiennya saja';
   assert (select count(*) from public.v_prioritas) = 0, 'P tidak melihat v_prioritas';
@@ -146,6 +208,33 @@ begin
   exception when others then
     if sqlerrm not like '%belum_daftar%' then raise; end if;
   end;
+end $$;
+
+-- ==============================================================================
+-- ===== Bagian C: isi_contoh                                                =====
+-- ==============================================================================
+do $$ begin
+  perform set_config('request.jwt.claims', '{"sub":"dddddddd-0000-0000-0000-000000000000","role":"authenticated"}', true);
+  begin
+    perform public.isi_contoh();
+    raise exception 'GAGAL: pasien bisa isi_contoh';
+  exception when others then
+    if sqlerrm not like '%bukan_fisioterapis%' then raise; end if;
+  end;
+
+  perform set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000000","role":"authenticated"}', true);
+  assert public.isi_contoh() = 5, 'isi pertama';
+  assert (select count(*) from public.pasien where is_sintetis) = 5, '5 pasien sintetis';
+  assert (select count(*) from public.v_prioritas where eskalasi_terbuka) = 1, 'Wayan eskalasi';
+  update public.eskalasi set ditinjau = now(), ditinjau_oleh = 'aaaaaaaa-0000-0000-0000-000000000000', keputusan = 'lanjutkan' where ditinjau is null;
+  assert (select count(*) from public.v_prioritas where eskalasi_terbuka) = 0, 'tinjau menutup';
+  assert public.isi_contoh() = 5, 'atur ulang';
+  assert (select count(*) from public.pasien where is_sintetis) = 5, 'tidak menggandakan';
+  assert (select count(*) from public.v_prioritas where eskalasi_terbuka) = 1, 'eskalasi pulih';
+  assert exists (select 1 from public.pasien where id = '11111111-0000-0000-0000-000000000000'), 'pasien non-sintetis utuh';
+
+  perform set_config('request.jwt.claims', '{"sub":"bbbbbbbb-0000-0000-0000-000000000000","role":"authenticated"}', true);
+  assert (select count(*) from public.pasien) = 1, 'B tidak terpengaruh';
 end $$;
 
 rollback;

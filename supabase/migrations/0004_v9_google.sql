@@ -7,7 +7,8 @@
 -- 1. Hapus trigger daftar (peran kini dicatat RPC daftar setelah redirect OAuth)
 -- ==============================================================================
 drop trigger if exists pengguna_baru on auth.users;
-drop function if exists public.tangani_pengguna_baru();
+
+drop function if exists public.tangani_pengguna_baru ();
 
 -- ==============================================================================
 -- 2. Hapus sandbox lama (cascade ke pasien → sesi → eskalasi)
@@ -18,36 +19,83 @@ delete from public.profil where is_demo;
 -- 3. Lepas perangkat anonim (anonymous sign-in OFF, perangkat lama tidak boleh menulis sesi lagi)
 -- ==============================================================================
 update public.pasien
-   set user_id = null, persetujuan_versi = null, persetujuan_waktu = null, persetujuan_oleh = null
- where user_id in (select id from auth.users where is_anonymous);
+set
+    user_id = null,
+    persetujuan_versi = null,
+    persetujuan_waktu = null,
+    persetujuan_oleh = null
+where
+    user_id in (
+        select id
+        from auth.users
+        where
+            is_anonymous
+    );
 
 -- ==============================================================================
 -- 4. Kolom peran: satu akun = satu peran. Profil lama semuanya fisioterapis.
 -- ==============================================================================
 alter table public.profil add column peran text;
+
 update public.profil set peran = 'fisioterapis';
+
 alter table public.profil
-  alter column peran set not null,
-  add constraint profil_peran_cek check (peran in ('fisioterapis', 'pasien'));
+alter column peran
+set
+    not null,
+add constraint profil_peran_cek check (
+    peran in ('fisioterapis', 'pasien')
+);
 -- tanpa GRANT update (peran): hanya RPC daftar yang menulis kolom ini
 
 -- ==============================================================================
 -- 5. Buang is_demo (kebijakan sesi_sisip lama memakai kolom ini, jadi dibuang dulu)
 -- ==============================================================================
 drop policy sesi_sisip on public.sesi;
+
 alter table public.profil drop column is_demo;
 
 -- ==============================================================================
 -- 6. RLS baru (SPEC §8.3)
 -- ==============================================================================
-create policy sesi_sisip on public.sesi for insert to authenticated
-  with check (exists (select 1 from public.pasien p where p.id = sesi.pasien_id
-                      and p.user_id = (select auth.uid())));   -- [V9] cabang terapis demo dihapus
+create policy sesi_sisip on public.sesi for
+insert
+    to authenticated
+with
+    check (
+        exists (
+            select 1
+            from public.pasien p
+            where
+                p.id = sesi.pasien_id
+                and p.user_id = (
+                    select auth.uid ()
+                )
+        )
+    );
+-- [V9] cabang terapis demo dihapus
 
 drop policy pasien_sisip on public.pasien;
-create policy pasien_sisip on public.pasien for insert to authenticated
-  with check (terapis_id = (select auth.uid())
-              and exists (select 1 from public.profil f where f.id = (select auth.uid()) and f.peran = 'fisioterapis'));   -- [V9] akun pasien juga punya profil, jadi FK saja tidak cukup
+
+create policy pasien_sisip on public.pasien for
+insert
+    to authenticated
+with
+    check (
+        terapis_id = (
+            select auth.uid ()
+        )
+        and exists (
+            select 1
+            from public.profil f
+            where
+                f.id = (
+                    select auth.uid ()
+                )
+                and f.peran = 'fisioterapis'
+        )
+    );
+-- [V9] akun pasien juga punya profil, jadi FK saja tidak cukup
 
 -- ==============================================================================
 -- 7. Hapus sandbox juri (digantikan isi_contoh)
@@ -142,5 +190,49 @@ $$;
 -- ==============================================================================
 -- 9. Revoke / Grant (klaim_pasien dan lapor_nyeri mempertahankan GRANT dari 0002)
 -- ==============================================================================
-revoke execute on function public.daftar(text) from public, anon;
-grant execute on function public.daftar(text) to authenticated;
+revoke execute on function public.daftar (text) from public, anon;
+
+grant execute on function public.daftar (text) to authenticated;
+
+-- ==============================================================================
+-- 10. isi_contoh (SPEC §8.8)
+-- ==============================================================================
+create or replace function public.isi_contoh()
+returns int                                        -- jumlah pasien sintetis yang dibuat
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_id uuid;
+  r record;
+begin
+  -- kunci baris profil: klik ganda tidak membuat 10 pasien [default spec]
+  perform 1 from public.profil where id = v_uid and peran = 'fisioterapis' for update;
+  if not found then raise exception 'bukan_fisioterapis'; end if;
+
+  -- atur ulang: sesi + eskalasi ikut terhapus lewat on delete cascade (§8.1)
+  delete from public.pasien where terapis_id = v_uid and is_sintetis;
+
+  for r in
+    select * from (values
+      ('Pak Wayan',  'kanan', 'memburuk'),
+      ('Bu Made',    'kiri',  'stabil_nyeri'),
+      ('Pak Nyoman', 'kanan', 'jarang'),
+      ('Bu Ketut',   'kiri',  'membaik'),
+      ('Pak Komang', 'kanan', 'stabil_baik')
+    ) as v(nama, sisi, pola)
+  loop
+    insert into public.pasien (terapis_id, nama_panggilan, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, is_sintetis)
+    values (v_uid, r.nama, r.sisi, array['jangkau_depan', 'jangkau_samping'], 10, 3, true)
+    returning id into v_id;
+    perform public.isi_sintetis(v_id, r.pola);
+  end loop;
+  return 5;
+end;
+$$;
+
+revoke execute on function public.isi_contoh () from public, anon;
+
+grant execute on function public.isi_contoh () to authenticated;

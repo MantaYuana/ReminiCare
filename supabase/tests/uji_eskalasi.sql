@@ -5,9 +5,10 @@
 
 begin;
 
--- 1. Buat data pengguna terapis uji (memicu trigger daftar profil)
+-- 1. Buat data pengguna terapis uji (tanpa trigger daftar sejak V9, profil diisi langsung)
 insert into auth.users (id, aud, role, email, raw_user_meta_data) values
-  ('eeeeeeee-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'esk@uji.local', '{"role":"fisioterapis","nama":"Uji"}');
+  ('eeeeeeee-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'esk@uji.local', '{}');
+insert into public.profil (id, peran, nama) values ('eeeeeeee-0000-0000-0000-000000000000', 'fisioterapis', 'Uji');
 
 -- 2. Buat pasien uji sintetis dengan 4 pola berbeda
 insert into public.pasien (id, terapis_id, nama_panggilan, sisi_terdampak, gerakan, is_sintetis) values

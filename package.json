@@ -1,0 +1,36 @@
+{
+  "name": "reminicare",
+  "version": "1.0.0",
+  "description": "Aplikasi rehabilitasi fisio pasien ReminiCare",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "node --test \"lib/**/*.test.ts\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantaYuana/ReminiCare.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/MantaYuana/ReminiCare/issues"
+  },
+  "homepage": "https://github.com/MantaYuana/ReminiCare#readme",
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.2.0",
+    "@supabase/supabase-js": "2.118.0",
+    "next": "16.4.3",
+    "qrcode": "1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}

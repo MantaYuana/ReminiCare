@@ -1,7 +1,5 @@
 'use client';
 
-import type { Gerakan } from '../../lib/kinematik/tipe';
-
 const NAMA_GERAKAN: Record<string, string> = {
   jangkau_depan:   'Jangkau Depan',
   jangkau_samping: 'Jangkau Samping',
@@ -14,7 +12,7 @@ interface PropsLayarGerakan {
   totalRepPerGerakan: number;
   skor: number;
   fps: number;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
   onBerhenti(): void;
 }
 
@@ -32,17 +30,19 @@ export default function LayarGerakan({
   const mirror = sisi === 'kiri' ? 'scaleX(-1)' : undefined;
 
   return (
-    <div className="relative flex flex-col h-screen bg-black">
-      {/* Video kamera (dicerminkan) */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ transform: 'scaleX(-1)' }}
-        aria-label="Kamera latihan"
-      />
+    <div className="relative flex flex-col h-screen bg-transparent">
+      {/* Video kamera (dicerminkan) bila ref diteruskan */}
+      {videoRef && (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+          aria-label="Kamera latihan"
+        />
+      )}
 
       {/* Video peragaan di pojok kanan bawah */}
       <video
@@ -51,7 +51,7 @@ export default function LayarGerakan({
         loop
         muted
         playsInline
-        className="absolute bottom-4 right-4 w-32 h-24 object-cover rounded-lg border-2 border-white/50"
+        className="absolute bottom-4 right-4 w-32 h-24 object-cover rounded-lg border-2 border-white/50 z-20"
         style={mirror ? { transform: mirror } : undefined}
         aria-label={`Video peragaan ${NAMA_GERAKAN[gerakan] ?? gerakan}`}
       />

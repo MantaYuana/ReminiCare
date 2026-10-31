@@ -87,6 +87,10 @@ export async function mulaiPose(
             runningMode: 'VIDEO',
             numPoses: 1,
           });
+          if (!berjalan) {
+            landmarker.close();
+            return;
+          }
           result = landmarker.detectForVideo(video, timestamp) as LandmarkResult;
         } else {
           throw err;

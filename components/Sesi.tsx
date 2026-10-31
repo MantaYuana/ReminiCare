@@ -47,6 +47,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
   const [nyeriSudahDipilih, setNyeriSudahDipilih] = useState(false);
   const [pesanSimpan, setPesanSimpan] = useState<string | undefined>();
   const [riwayat, setRiwayat]       = useState<Riwayat[]>([]);
+  const [repBenar, setRepBenar]     = useState(0);
+  const sesiIdRef                   = useRef<string | null>(null);
 
   const juruSuara = useRef(buatJuruSuara(resep.mode_koreksi));
 
@@ -268,6 +270,11 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
       delegate: poseRef.current?.delegate ?? 'CPU',
     });
 
+    const repTotal = barisSesi.rep_total;
+    const repBenarHitung = repTotal - barisSesi.rep_terkompensasi;
+    setRepBenar(repBenarHitung);
+    sesiIdRef.current = barisSesi.id;
+
     if (simpan && pasienId && layar.totalRep > 0) {
       const berhasil = tambah({ jenis: 'sesi', baris: barisSesi });
       if (berhasil) {
@@ -278,13 +285,11 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
     }
 
     if (pasienId && layar.totalRep > 0) {
-      const repTotal = barisSesi.rep_total;
-      const repBenar = repTotal - barisSesi.rep_terkompensasi;
       tambahRiwayat(pasienId, {
         mulai: barisSesi.mulai,
-        pct_benar: repTotal > 0 ? Math.round((repBenar / repTotal) * 100) : null,
+        pct_benar: repTotal > 0 ? Math.round((repBenarHitung / repTotal) * 100) : null,
         rep_total: repTotal,
-        rep_benar: repBenar,
+        rep_benar: repBenarHitung,
       });
       setRiwayat(bacaRiwayat(pasienId));
     }
@@ -294,7 +299,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
 
   function handleNyeri(nilai: 0 | 1 | 2) {
     if (!pasienId) return;
-    const berhasil = tambah({ jenis: 'nyeri', sesi_id: 'pending', nilai });
+    const sid = sesiIdRef.current ?? 'pending';
+    const berhasil = tambah({ jenis: 'nyeri', sesi_id: sid, nilai });
     if (berhasil) kirim();
     setNyeriSudahDipilih(true);
   }
@@ -410,7 +416,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali }:
       {layar.nama === 'ringkasan' && (
         <LayarRingkasan
           totalRep={layar.totalRep}
-          repBenar={layar.totalRep}
+          repBenar={repBenar}
           tamu={tamu}
           riwayat={riwayat}
           pesanSimpan={pesanSimpan}

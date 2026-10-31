@@ -15,6 +15,7 @@
   "keywords": [],
   "author": "",
   "license": "MIT",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/MantaYuana/ReminiCare/issues"
   },

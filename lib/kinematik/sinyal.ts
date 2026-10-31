@@ -34,8 +34,8 @@ export function keSampel(f: FrameMentah, sisi: Sisi, sebelum: Sampel | null): Sa
     return { t, p, S3: kosong3, H3: kosong3, diDalam: false, skor: 0, visPanggul: 0, panggulN: kosong };
   }
 
-  const ki = sisi === 'kiri' ? 'kiri' : 'kanan';
-  const ka = sisi === 'kiri' ? 'kanan' : 'kiri';
+
+
 
   const p: Record<Kunci, P2> = {
     telingaT:     { x: lm[IDX.telinga[sisi]].x * W,     y: lm[IDX.telinga[sisi]].y * H },

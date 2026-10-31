@@ -4,10 +4,12 @@
 import {
   type Sampel, type Baseline, type Fitur, type Ambang, type AmbangEfektif,
   type Penanda, type Kandidat, type Gerakan, type Toleransi, type Sisi,
-  type FrameMentah, type HasilKalibrasi,
+  type FrameMentah,
   AMBANG_AWAL, KALI_TOLERANSI, GATING, KALIB, HZ,
 } from './tipe.ts';
 import { keSampel, buatResampler, koefButterworth } from './sinyal.ts';
+
+export type HasilKalibrasi = { ok: true; baseline: Baseline } | { ok: false; alasan: 'gerak' | 'keyakinan' };
 
 // ── hitungFitur ───────────────────────────────────────────────────────────
 

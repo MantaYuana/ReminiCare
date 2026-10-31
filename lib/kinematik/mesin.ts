@@ -3,12 +3,12 @@
 
 import {
   type FrameMentah, type Gerakan, type Baseline, type EventMesin,
-  type HasilRepetisi, type KonfigSesi, type Sampel, type Sisi, type Toleransi,
+  type HasilRepetisi, type KonfigSesi, type Sampel, type Toleransi,
   type ModeKoreksi, type KalimatCondong, type Kandidat,
   REP, AMBANG_VERSI, KANDIDAT_CONDONG, SUARA_CONDONG, ISTIRAHAT_MS,
-  AMBANG_AWAL,
+  FC_HZ, HZ,
 } from './tipe.ts';
-import { keSampel, buatResampler, buatFilterSampel, koefButterworth, FC_HZ, HZ } from './sinyal.ts';
+import { keSampel, buatResampler, buatFilterSampel, koefButterworth } from './sinyal.ts';
 import { hitungFitur, ambangEfektif, hitungPenanda, buatGating } from './fitur.ts';
 import { langkahRep, nilaiRepetisi, buatKoreksi, buatPenghitungBagus } from './repetisi.ts';
 import type { KeadaanRep, SampelRep } from './repetisi.ts';
@@ -71,7 +71,7 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
   const koreksi   = buatKoreksi(cfg);
   const penghitung = buatPenghitungBagus();
 
-  let gerakanAktif: Gerakan = cfg.sisi === 'kiri' ? 'jangkau_depan' : 'jangkau_depan';
+  let gerakanAktif: Gerakan = 'jangkau_depan';
   let keAdaan: KeadaanRep = { status: 'DIAM', tMulai: null };
   let hitungan = 0;
   let sebelum: Sampel | null = null;

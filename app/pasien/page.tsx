@@ -100,8 +100,7 @@ export default function Page() {
           muatRiwayat(lokal.pasien_id);
           setKeadaan('terikat');
         }
-      } else if ((peran.jenis as string) === 'pasien_baru') {
-        // Peran pasien yang belum terikat ke resep (kontrak V9 dari lib/supabase.ts)
+      } else if (peran.jenis === 'pasien_baru') {
         hapus('rc_resep');
         setKeadaan('belum_ada_resep');
       } else {
@@ -221,7 +220,7 @@ export default function Page() {
       ];
 
   const bawah: ItemNav[] = [
-    { label: 'Keluar', ikon: <IkonKeluar />, onClick: handleKeluar, nonaktif: !bisaKeluar },
+    { label: bisaKeluar ? 'Keluar' : `Tunggu ${antreanCount} sesi terkirim dulu`, ikon: <IkonKeluar />, onClick: handleKeluar, nonaktif: !bisaKeluar },
     ...(terikat ? [{ label: 'Hapus data saya', ikon: <IkonHapus />, onClick: () => setKonfirmHapus(true), bahaya: true }] : []),
   ];
 

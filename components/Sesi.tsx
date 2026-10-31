@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 
 import type { ResepSalinan } from '../lib/kinematik/mesin.ts';
 import { buatMesin, agregatSesi } from '../lib/kinematik/mesin.ts';
-import type { Sisi, EventMesin, Baseline, KonfigSesi, FrameMentah } from '../lib/kinematik/tipe.ts';
+import type { Sisi, EventMesin, Baseline, KonfigSesi, FrameMentah, Tingkat } from '../lib/kinematik/tipe.ts';
 import { ISTIRAHAT_MS, GATING } from '../lib/kinematik/tipe.ts';
 import { buatPemantau, kalibrasi } from '../lib/kinematik/fitur.ts';
 import { mulaiPose } from '../lib/pose.ts';
+import { gambarKerangka } from '../lib/kerangka.ts';
 import { mulaiLayar, langkah, buatJuruSuara } from '../lib/sesi-state.ts';
 import type { Layar, Aksi } from '../lib/sesi-state.ts';
 import { suara } from '../lib/suara.ts';
@@ -45,6 +46,8 @@ type Ringkas = { total: number; benar: number; pct: number | null };
 export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, onSelesai }: PropsSesi) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const kanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const kerangkaRef = useRef<{ tingkat: Tingkat | null; redup: boolean }>({ tingkat: null, redup: true });
   const mulaiMs  = useRef(Date.now());
 
   const [layar, setLayar]           = useState<Layar>(() => mulaiLayar(suara.jalur !== null));
@@ -110,6 +113,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       tSkorRef.current = e.t;
       setSkor(e.skor);
     }
+    if (e.jenis === 'sampel') kerangkaRef.current = { tingkat: e.tingkat, redup: e.gating || !e.diDalam };
     if (e.jenis === 'gating') setGating(e.aktif);
     if (e.jenis === 'repetisi') kirimAksi({ t: 'repetisi', hitungan: e.hitungan });
   }, [kirimAksi]);
@@ -164,6 +168,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       if (mesinRef.current) {
         for (const e of mesinRef.current.dorong(f)) tangani(e);
       }
+      if (kanvasRef.current) gambarKerangka(kanvasRef.current, f, kerangkaRef.current.tingkat, kerangkaRef.current.redup);
     }
   }, [tangani]);
 
@@ -369,6 +374,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             style={{ transform: 'scaleX(-1)' }}
             aria-label="Kamera latihan"
           />
+          {layar.nama === 'gerakan' && (
+            <canvas ref={kanvasRef} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" />
+          )}
         </div>
       ) : <span hidden />}
 

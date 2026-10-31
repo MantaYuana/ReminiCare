@@ -9,7 +9,7 @@ import {
   FC_HZ, HZ,
 } from './tipe.ts';
 import { keSampel, buatResampler, buatFilterSampel, koefButterworth } from './sinyal.ts';
-import { hitungFitur, ambangEfektif, hitungPenanda, buatGating } from './fitur.ts';
+import { hitungFitur, ambangEfektif, hitungPenanda, hitungTingkat, buatGating } from './fitur.ts';
 import { langkahRep, nilaiRepetisi, buatKoreksi, buatPenghitungBagus } from './repetisi.ts';
 import type { KeadaanRep, SampelRep } from './repetisi.ts';
 
@@ -172,6 +172,7 @@ export function buatMesin(cfg: KonfigSesi, b: Baseline): Mesin {
         eventSampel = {
           jenis: 'sampel', t: sf.t, status: keAdaan.status,
           gating: gatingAktif, skor: sf.skor, diDalam: sf.diDalam, fitur, penanda,
+          tingkat: hitungTingkat(fitur, ambang, cfg.kandidat, cfg.mode === 'penuh'),
         };
       }
 

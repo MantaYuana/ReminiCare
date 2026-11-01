@@ -44,7 +44,7 @@ ReminiCare adalah PWA untuk latihan lengan pasca-stroke dengan deteksi kompensas
 | **Supabase** (penyedia database) | Semua data sesi dan profil | Penyimpanan dan autentikasi | Singapura (ap-southeast-1) |
 | **Vercel** (hosting) | Log akses, header HTTP | Hosting aplikasi | Global (CDN) |
 | **Google** (OAuth provider) | Email, nama akun | Autentikasi login | Global |
-| **Gemini API** (Google) | Agregat angka 14 hari (tanpa nama, ID, atau tanggal) | Ringkasan AI untuk fisioterapis (F20) | Global |
+| **Gemini API** (Google) | Agregat angka 14 hari (tanpa nama, ID, atau tanggal) | Ringkasan AI untuk fisioterapis | Global |
 | **Fisioterapis yang merawat** | Data latihan pasiennya | Pemantauan klinis | Perangkat fisioterapis |
 
 ## 6. Transfer Data Lintas Negara
@@ -62,7 +62,7 @@ Data disimpan di server Supabase region Singapura. Transfer ke luar negeri (Indo
 | Akses tidak sah ke data kesehatan | Tinggi | Row-Level Security (RLS) Postgres: setiap pengguna hanya bisa membaca/menulis data mereka sendiri atau pasien mereka |
 | Kebocoran data saat transmisi | Sedang | HTTPS wajib, koneksi tidak aman ditolak browser |
 | Identifikasi dari video | Tinggi | Video tidak dikirim atau disimpan; hanya angka agregat |
-| Halusinasi LLM (F20) | Sedang | Masukan hanya angka terstruktur tanpa nama/ID, keluaran diverifikasi dengan cek angka, prompt melarang diagnosis, label "Ringkasan AI, cek grafik sebelum memutuskan" |
+| Halusinasi LLM (Ringkasan AI) | Sedang | Masukan hanya angka terstruktur tanpa nama/ID, keluaran diverifikasi dengan cek angka, prompt melarang diagnosis, label "Ringkasan AI, cek grafik sebelum memutuskan" |
 | Kehilangan akses akun Google | Sedang | Belum ada mekanisme pemulihan; akan ditambahkan di versi produksi |
 | Penyalahgunaan data untuk iklan | Rendah (prototipe) | Gemini tier gratis membolehkan Google menggunakan data; untuk klinis akan diupgrade ke tier berbayar dengan DPA |
 

@@ -310,7 +310,8 @@
 .lp-tutup__sisi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .lp-tutup__foto { position: relative; overflow: hidden; border-radius: var(--bentuk-m); min-height: 130px; background: var(--teal-d); }
 .lp-tutup__foto img { object-fit: cover; object-position: 50% 28%; }
-.lp-tutup__warna { border-radius: var(--bentuk-m); min-height: 130px; background: var(--teal-d); }
+.lp-tutup__warna { position: relative; overflow: hidden; border-radius: var(--bentuk-m); min-height: 130px; background: var(--teal-d); }
+.lp-tutup__warna img { object-fit: cover; object-position: 50% 28%; }
 @media (min-width: 960px) {
   .lp-tutup__baris { grid-template-columns: minmax(0, 1fr) minmax(0, 4.4fr) minmax(0, 1fr); min-height: 380px; }
   .lp-tutup__sisi { display: contents; }

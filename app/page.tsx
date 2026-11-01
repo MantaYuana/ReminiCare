@@ -297,7 +297,9 @@ export default function Landing() {
               <div className="lp-tutup__foto">
                 <Image src="/login.jpg" alt="Fisioterapis membantu seorang pasien mengangkat lengan" fill sizes="(min-width: 960px) 20vw, 50vw" />
               </div>
-              <div className="lp-tutup__warna" aria-hidden="true" />
+              <div className="lp-tutup__warna">
+                <Image src="/kanan.jpg" alt="" aria-hidden="true" fill sizes="(min-width: 960px) 20vw, 50vw" />
+              </div>
             </div>
           </div>
         </section>

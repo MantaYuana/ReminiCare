@@ -1,9 +1,13 @@
+'use client';
+
+import { useState } from 'react';
 import { IkonAkun, IkonBel, IkonPeringatan, IkonPesan, IkonTitikTiga } from './ikon';
 
 interface Props {
   terhubung: boolean;
   /** Hanya tampil bila datanya ada. */
   nama?: string;
+  foto?: string | null;
   telepon?: string;
   /** Pesan saat belum terhubung. */
   pesanKosong?: string;
@@ -21,7 +25,9 @@ function Kepala() {
 }
 
 /** Kolom kanan beranda: kartu fisioterapis, atau peringatan bila belum terhubung. */
-export default function PanelFisioterapis({ terhubung, nama, telepon, pesanKosong }: Props) {
+export default function PanelFisioterapis({ terhubung, nama, foto, telepon, pesanKosong }: Props) {
+  const [fotoRusak, setFotoRusak] = useState(false);
+
   if (!terhubung) {
     return (
       <div className="flex flex-col gap-6">
@@ -40,12 +46,23 @@ export default function PanelFisioterapis({ terhubung, nama, telepon, pesanKoson
     <div className="flex flex-col gap-6">
       <Kepala />
       <div className="flex flex-col items-center gap-2 text-center">
-        <span
-          aria-hidden="true"
-          className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-brand-600 bg-brand-50 text-3xl font-semibold text-brand-700"
-        >
-          {inisial ?? <IkonAkun className="h-10 w-10" />}
-        </span>
+        {foto && !fotoRusak ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={foto}
+            alt=""
+            referrerPolicy="no-referrer"
+            onError={() => setFotoRusak(true)}
+            className="h-24 w-24 rounded-full border-4 border-brand-600 object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-brand-600 bg-brand-50 text-3xl font-semibold text-brand-700"
+          >
+            {inisial ?? <IkonAkun className="h-10 w-10" />}
+          </span>
+        )}
         <p className="mt-2 text-lg font-semibold leading-snug">{nama ?? 'Terhubung dengan fisioterapis'}</p>
         {telepon && <p className="text-base text-muted">{telepon}</p>}
         <div className="mt-2 flex gap-4">

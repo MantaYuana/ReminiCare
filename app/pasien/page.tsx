@@ -38,6 +38,7 @@ export default function Page() {
   const [galat, setGalat]                 = useState('');
   const [kode, setKode]                   = useState('');
   const [galatKode, setGalatKode]         = useState('');
+  const [terapis, setTerapis]             = useState<{ nama: string | null; foto: string | null } | null>(null);
 
   useEffect(() => {
     function tampilkan(r: ResepLokal, dibuat?: string) {
@@ -69,6 +70,11 @@ export default function Page() {
           const lokal = keResepLokal(data);
           simpanResep(lokal);
           tampilkan(lokal, data.dibuat);
+          // Nama dan foto fisioterapis lewat RPC (RLS profil tidak mengizinkan baca langsung); gagal = panel generik
+          void supabase.rpc('terapis_saya').then(({ data: baris }) => {
+            const t = (baris as { nama: string | null; foto: string | null }[] | null)?.[0];
+            if (t) setTerapis(t);
+          });
         } else if (error) {
           // jaringan putus sesaat: rc_resep jangan dihapus, latihan luring tetap bisa jalan
           muatLokal(peran.pasienId);
@@ -207,7 +213,7 @@ export default function Page() {
       judul="Beranda pasien"
       atas={atas}
       bawah={bawah}
-      panel={<PanelFisioterapis terhubung={terikat} />}
+      panel={<PanelFisioterapis terhubung={terikat} nama={terapis?.nama ?? undefined} foto={terapis?.foto} />}
     >
       <BannerSambutan
         label={terikat && nama ? `Selamat datang ${nama}` : 'Selamat datang'}

@@ -45,6 +45,23 @@ describe('sesi-state', () => {
     assert.equal(l4.gerakanKe, 0);
   });
 
+  // ── posisi hilang saat hitung mundur ────────────────────────────────────
+
+  it('batal saat kalibrasi → kembali ke panduan tanpa bantuan', () => {
+    const { layar } = jalankan(mulaiLayar(false), [
+      { t: 'suaraSiap' }, { t: 'kameraSiap' }, { t: 'siap' }, { t: 'batal' },
+    ]);
+    assert.equal(layar.nama, 'panduan');
+    assert.equal(layar.bantuan, false);
+  });
+
+  it('batal di luar kalibrasi diabaikan', () => {
+    const { layar } = jalankan(mulaiLayar(false), [
+      { t: 'suaraSiap' }, { t: 'kameraSiap' }, { t: 'batal' },
+    ]);
+    assert.equal(layar.nama, 'panduan');
+  });
+
   // ── kalibrasi gagal ─────────────────────────────────────────────────────
 
   it('kalibrasi gagal 2× tetap kalibrasi', () => {

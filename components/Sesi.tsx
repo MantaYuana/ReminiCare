@@ -41,6 +41,9 @@ export interface PropsSesi {
 
 type Ringkas = { total: number; benar: number; pct: number | null };
 
+const JEDA_BINGKAI_MS = 5000;
+const BUANG_AWAL_KALIB_MS = 1000;   // 1 dtk pertama hitung mundur: pengguna masih menyesuaikan duduk
+
 // ── Komponen ──────────────────────────────────────────────────────────────
 
 export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, onSelesai }: PropsSesi) {
@@ -83,6 +86,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   const selesaiRef = useRef(onSelesai);
   selesaiRef.current = onSelesai;
   const tSkorRef = useRef(0);
+  const tBingkaiRef = useRef(0);                   // I-BINGKAI saat hitung mundur batal: jeda ≥ 5 dtk
+  const panduanDiucapRef = useRef(false);          // I-KAMERA/I-POSISI hanya sekali, bukan tiap hitung mundur batal
 
   // Semua jalan keluar lewat sini: di /tamu, router.push('/tamu') ke halaman yang sama tidak berbuat apa-apa
   const keluar = useCallback(() => {
@@ -139,15 +144,28 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     }
 
     const l = layarRef.current;
-    if (l.nama === 'panduan') {
+    if (l.nama === 'panduan' || l.nama === 'kalibrasi') {
       if (!pemantauRef.current) {
         pemantauRef.current = buatPemantau(resepRef.current.sisi);
       }
       const { gating: g, skor: sk, diDalam: dd } = pemantauRef.current.dorong(f);
-      // gating baru aktif setelah 1 dtk buruk; frame buruk saat ini juga menahan tombol Siap (F05)
-      setGating(g || !dd || sk < GATING.masuk);
-    } else if (l.nama === 'kalibrasi') {
-      kalibFramesRef.current.push(f);
+      // frame buruk saat ini juga dihitung buruk (tanpa jeda), supaya hitung mundur langsung batal
+      const buruk = g || !dd || sk < GATING.masuk;
+      setGating(buruk);
+
+      if (l.nama === 'panduan') {
+        if (!buruk) kirimAksi({ t: 'siap' });             // posisi lolos: hitung mundur mulai otomatis
+      } else if (buruk) {
+        suara.hentikan();                                 // angka yang sedang berjalan tidak boleh berlanjut
+        kirimAksi({ t: 'batal' });
+        const kini = Date.now();
+        if (kini - tBingkaiRef.current >= JEDA_BINGKAI_MS) {
+          tBingkaiRef.current = kini;
+          suara.ucap('I-BINGKAI');
+        }
+      } else {
+        kalibFramesRef.current.push(f);
+      }
     } else if (l.nama === 'gerakan') {
       if (!mesinRef.current && baselineRef.current) {
         const r = resepRef.current;
@@ -170,7 +188,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       }
       if (kanvasRef.current) gambarKerangka(kanvasRef.current, f, kerangkaRef.current.tingkat, kerangkaRef.current.redup);
     }
-  }, [tangani]);
+  }, [tangani, kirimAksi]);
 
   // ── Setup kamera + PoseLandmarker (sekali per sesi; ulang saat "Coba lagi") ─
 
@@ -221,7 +239,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   // ── Suara saat masuk layar ───────────────────────────────────────────────
 
   useEffect(() => {
-    if (layar.nama === 'panduan') {
+    if (layar.nama === 'panduan' && !panduanDiucapRef.current) {
+      panduanDiucapRef.current = true;
       suara.ucap('I-KAMERA');
       suara.ucap('I-POSISI');
     }
@@ -252,8 +271,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   // ── Kalibrasi selesai ───────────────────────────────────────────────────
 
   function handleKalibrasiSelesai() {
-    const frames = kalibFramesRef.current;
+    const semua = kalibFramesRef.current;
     kalibFramesRef.current = [];         // percobaan berikutnya mulai dari kosong
+    const frames = semua.length > 0 ? semua.filter(f => f.t >= semua[0].t + BUANG_AWAL_KALIB_MS) : semua;
     const res = kalibrasi(frames, resep.sisi);
     if (res.ok) {
       baselineRef.current = res.baseline;
@@ -361,7 +381,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             layar.nama === 'gerakan'
               ? 'fixed inset-0 z-0 h-full w-full'
               : kamera
-              ? 'w-full'
+              ? 'relative w-full'
               : 'pointer-events-none fixed -left-[9999px] -top-[9999px] h-[480px] w-[640px]'
           }
         >
@@ -370,12 +390,23 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             autoPlay
             playsInline
             muted
-            className={`w-full ${layar.nama === 'gerakan' ? 'h-full object-cover' : 'aspect-video max-h-[60vh] rounded-2xl border border-slate-300 bg-slate-900 object-contain'}`}
+            className={`w-full ${layar.nama === 'gerakan' ? 'h-full object-cover' : `aspect-video max-h-[60vh] rounded-2xl border-4 bg-slate-900 object-contain ${layar.nama === 'kalibrasi' ? 'border-green-500' : kamera && gating ? 'border-amber-400' : 'border-slate-300'}`}`}
             style={{ transform: 'scaleX(-1)' }}
             aria-label="Kamera latihan"
           />
           {layar.nama === 'gerakan' && (
             <canvas ref={kanvasRef} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" />
+          )}
+          {layar.nama === 'panduan' && gating && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/55 px-4 py-3 text-center text-xl font-semibold text-white sm:text-3xl"
+            >
+              Posisikan kepala sampai pangkuan ke dalam bingkai
+            </div>
+          )}
+          {layar.nama === 'kalibrasi' && (
+            <LayarKalibrasi key={layar.gagalKalibrasi} onSelesai={handleKalibrasiSelesai} />
           )}
         </div>
       ) : <span hidden />}
@@ -425,12 +456,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
         </div>
       )}
 
-      {layar.nama === 'panduan' && (
-        <LayarPanduan bantuan={layar.bantuan} gating={gating} onSiap={() => kirimAksi({ t: 'siap' })} />
-      )}
-
-      {layar.nama === 'kalibrasi' && (
-        <LayarKalibrasi key={layar.gagalKalibrasi} onSelesai={handleKalibrasiSelesai} />
+      {(layar.nama === 'panduan' || layar.nama === 'kalibrasi') && (
+        <LayarPanduan bantuan={layar.bantuan} gating={gating} />
       )}
 
       {layar.nama === 'gerakan' && (

@@ -5,7 +5,6 @@ import { IkonLatihan } from '../ikon';
 interface PropsLayarPanduan {
   bantuan: boolean;
   gating: boolean;
-  onSiap(): void;
 }
 
 // Pratinjau kamera dirender oleh Sesi (satu <video> tetap terpasang untuk mesin pose).
@@ -16,7 +15,7 @@ const PETUNJUK = [
   'Posisi lanskap (mendatar) disarankan',
 ];
 
-export default function LayarPanduan({ bantuan, gating, onSiap }: PropsLayarPanduan) {
+export default function LayarPanduan({ bantuan, gating }:PropsLayarPanduan) {
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -35,12 +34,8 @@ export default function LayarPanduan({ bantuan, gating, onSiap }: PropsLayarPand
           <div role="status" className={gating ? 'rc-info' : 'rc-ok'}>
             {gating
               ? 'Kamera belum melihat Anda dengan jelas. Geser posisi sampai kepala sampai pangkuan masuk bingkai.'
-              : 'Posisi terlihat baik. Tekan Siap bila sudah nyaman.'}
+              : 'Posisi terlihat baik. Tetap duduk diam sampai hitungan selesai.'}
           </div>
-
-          <button onClick={onSiap} disabled={gating} className="rc-btn">
-            {gating ? 'Posisikan tubuh ke dalam bingkai' : 'Siap'}
-          </button>
         </div>
 
         <section aria-labelledby="judul-petunjuk" className="rounded-2xl border border-slate-200 p-4">

@@ -30,5 +30,6 @@ test('pesanGalat: kode V9', () => {
   assert.match(pesanGalat({ message: 'belum_daftar' }), /Sign Up as Pasien/);
   assert.match(pesanGalat({ message: 'akun_terapis' }), /akun Google lain/);
   assert.match(pesanGalat({ message: 'bukan_fisioterapis' }), /fisioterapis/);
+  assert.match(pesanGalat({ message: 'anonim_ditolak' }), /akun Google/);
   assert.equal(pesanGalat({ message: 'sandbox_hanya_anonim' }), 'Terjadi galat, coba lagi');
 });

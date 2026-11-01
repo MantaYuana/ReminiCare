@@ -4,13 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { masukGoogle, pesanGalat } from '../../lib/supabase';
 import AuthLayout, { IkonGoogle, useAlihkanBilaMasuk } from '../../components/AuthLayout';
-
-type PeranDaftar = 'fisioterapis' | 'pasien';
-
-const NAMA_PERAN: Record<PeranDaftar, string> = {
-  fisioterapis: 'Fisioterapis',
-  pasien: 'Pasien',
-};
+import { PilihanPeran, labelDaftar, type PeranDaftar } from '../../components/PilihPeran';
 
 export default function Page() {
   const [status] = useAlihkanBilaMasuk();
@@ -43,31 +37,11 @@ export default function Page() {
           {galat && <div role="alert" className="rc-alert">{galat}</div>}
 
           <div className="flex flex-col gap-3 mt-4">
-            <label htmlFor="peran" className="text-sm font-medium">Pilih Peran Anda</label>
-            <div className="relative">
-              <select
-                id="peran"
-                value={peran}
-                onChange={e => setPeran(e.target.value as PeranDaftar | '')}
-                className="min-h-[44px] w-full appearance-none rounded-sm border border-black/30 bg-white px-3 pr-10 text-sm text-ink"
-              >
-                <option value="">Daftar Sebagai</option>
-                <option value="fisioterapis">{NAMA_PERAN.fisioterapis}</option>
-                <option value="pasien">{NAMA_PERAN.pasien}</option>
-              </select>
-              <svg
-                width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink"
-              >
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
-              </svg>
-            </div>
+            <PilihanPeran id="peran" value={peran} onChange={setPeran} />
 
             <button onClick={handleGoogle} disabled={!peran || sibuk} className="rc-btn-google">
               <IkonGoogle />
-              {sibuk
-                ? 'Membuka Google…'
-                : peran ? `Sign Up as ${NAMA_PERAN[peran]}` : 'Sign Up with Google'}
+              {sibuk ? 'Membuka Google…' : labelDaftar(peran)}
             </button>
           </div>
 

@@ -45,6 +45,57 @@ export const IkonTutup = (p: P) => (
 export const IkonPanahKiri = (p: P) => (
   <Dasar {...p}><path d="M15 6l-6 6 6 6" /></Dasar>
 );
+export const IkonPanahKanan = (p: P) => (
+  <Dasar {...p}><path d="M9 6l6 6-6 6" /></Dasar>
+);
+export const IkonLatihan = (p: P) => (
+  <Dasar {...p}><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M9 12l2 2 4-4" /></Dasar>
+);
+export const IkonChat = (p: P) => (
+  <Dasar {...p}><path d="M5 5h14v11H10l-5 4z" /><path d="M9 10h6" /></Dasar>
+);
+export const IkonPengaturan = (p: P) => (
+  <Dasar {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+  </Dasar>
+);
+export const IkonCari = (p: P) => (
+  <Dasar {...p}><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></Dasar>
+);
+export const IkonFilter = (p: P) => (
+  <Dasar {...p}><path d="M4 5h16l-6 7v6l-4 2v-8z" /></Dasar>
+);
+export const IkonKamera = (p: P) => (
+  <Dasar {...p}><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></Dasar>
+);
+export const IkonPeringatan = (p: P) => (
+  <Dasar {...p}><path d="M12 4l9 16H3z" /><path d="M12 10v4" /><path d="M12 17.5v.01" /></Dasar>
+);
+export const IkonBel = (p: P) => (
+  <Dasar {...p}><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z" /><path d="M10 21h4" /></Dasar>
+);
+export const IkonPesan = (p: P) => (
+  <Dasar {...p}><rect x="4" y="6" width="16" height="12" rx="3" /><path d="M4.5 8l7.5 5 7.5-5" /></Dasar>
+);
+export const IkonTitikTiga = (p: P) => (
+  <Dasar {...p}><path d="M12 5v.01M12 12v.01M12 19v.01" strokeWidth="3" /></Dasar>
+);
+export const IkonPanahBawah = (p: P) => (
+  <Dasar {...p}><path d="M6 9l6 6 6-6" /></Dasar>
+);
+export const IkonSuara = (p: P) => (
+  <Dasar {...p}><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M16.5 9a4.5 4.5 0 0 1 0 6" /><path d="M19 6.5a8 8 0 0 1 0 11" /></Dasar>
+);
+export const IkonBerhenti = (p: P) => (
+  <Dasar {...p}><rect x="6" y="6" width="12" height="12" rx="2" /></Dasar>
+);
+export const IkonBintang = (p: P) => (
+  <Dasar {...p}><path d="M12 3c.6 4.8 3.2 7.4 8 8-4.8.6-7.4 3.2-8 8-.6-4.8-3.2-7.4-8-8 4.8-.6 7.4-3.2 8-8z" /></Dasar>
+);
+export const IkonTambah = (p: P) => (
+  <Dasar {...p}><path d="M12 5v14" /><path d="M5 12h14" /></Dasar>
+);
 export const IkonLengan = (p: P) => (
   <Dasar {...p}><path d="M5 20V9a3 3 0 0 1 6 0v5" /><path d="M11 14c2 0 3-1 3-3V6a2 2 0 0 1 4 0v8c0 3-2 6-6 6H5" /></Dasar>
 );

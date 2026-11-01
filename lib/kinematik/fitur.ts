@@ -3,7 +3,7 @@
 
 import {
   type Sampel, type Baseline, type Fitur, type Ambang, type AmbangEfektif,
-  type Penanda, type Kandidat, type Gerakan, type Toleransi, type Sisi,
+  type Penanda, type Tingkat, type Kandidat, type Gerakan, type Toleransi, type Sisi,
   type FrameMentah,
   AMBANG_AWAL, KALI_TOLERANSI, GATING, KALIB, HZ,
 } from './tipe.ts';
@@ -78,6 +78,17 @@ export function hitungPenanda(f: Fitur, a: AmbangEfektif, kandidat: Kandidat): P
   const bahu    = a.bahu && el;
 
   return { condongA, condongB, condongC, miring, el, condong, batang, bahu };
+}
+
+// ── hitungTingkat ─────────────────────────────────────────────────────────
+
+// Versi kontinu dari hitungPenanda: tingkat >= 1 tepat saat penanda batang / bahu menyala.
+export function hitungTingkat(f: Fitur, a: AmbangEfektif, kandidat: Kandidat, aktif: boolean): Tingkat {
+  const condong = kandidat === 'a' ? Math.min(f.w / a.tw, f.d / a.td) : kandidat === 'b' ? f.zb / a.tz : f.r / a.tr;
+  return {
+    batang: aktif && a.batang ? Math.max(0, condong, f.dTheta / a.tTheta) : null,
+    bahu: aktif && a.bahu ? Math.max(0, f.el / a.tel) : null,
+  };
 }
 
 // ── Gating ────────────────────────────────────────────────────────────────

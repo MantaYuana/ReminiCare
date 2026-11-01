@@ -54,10 +54,9 @@ export async function cekPeran(): Promise<Peran> {
       return { jenis: 'keluar' };
     }
 
+    // Tanpa sesi tersimpan = belum masuk, luring atau tidak. (Sesi yang gagal di-refresh karena luring
+    // datang lewat sessionError di atas sebagai luring tanpa uid, dan tetap diarahkan ke /pasien.)
     if (!session?.user) {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        return { jenis: 'luring' };
-      }
       return { jenis: 'keluar' };
     }
 
@@ -68,12 +67,14 @@ export async function cekPeran(): Promise<Peran> {
       return { jenis: 'luring', uid };
     }
 
-    // 1. Cek profil
-    const { data: profil, error: profilErr } = await supabase
-      .from('profil')
-      .select('peran, nama')
-      .eq('id', uid)
-      .maybeSingle();
+    // 1. Profil dan pasien sekaligus (tidak saling bergantung): satu round trip, bukan dua
+    const [
+      { data: profil, error: profilErr },
+      { data: pasien, error: pasienErr },
+    ] = await Promise.all([
+      supabase.from('profil').select('peran, nama').eq('id', uid).maybeSingle(),
+      supabase.from('pasien').select('id').eq('user_id', uid).maybeSingle(),
+    ]);
 
     if (profilErr) {
       // Jika kode kosong (transport error) atau perangkat luring -> mode luring
@@ -84,15 +85,9 @@ export async function cekPeran(): Promise<Peran> {
       throw profilErr;
     }
 
-    // 2. Bila peran pasien, cek pasien
+    // 2. Hasil pasien hanya bermakna untuk peran pasien
     let pasienId: string | null = null;
     if (profil?.peran === 'pasien') {
-      const { data: pasien, error: pasienErr } = await supabase
-        .from('pasien')
-        .select('id')
-        .eq('user_id', uid)
-        .maybeSingle();
-
       if (pasienErr) {
         // Jika kode kosong (transport error) atau perangkat luring -> mode luring
         if (!pasienErr.code || (typeof navigator !== 'undefined' && !navigator.onLine)) {

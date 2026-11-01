@@ -24,6 +24,7 @@ export type Aksi =
   | { t: 'suaraSiap' }
   | { t: 'kameraSiap' }
   | { t: 'siap' }
+  | { t: 'batal' }
   | { t: 'kalibrasi'; ok: boolean }
   | { t: 'repetisi'; hitungan: number }
   | { t: 'istirahatSelesai' }
@@ -67,6 +68,11 @@ export function langkah(
 
     case 'siap':
       if (l.nama === 'panduan') return next({ nama: 'kalibrasi' });
+      return next({});
+
+    // posisi hilang di tengah hitung mundur: kembali ke panduan, hitungan mulai dari 5 lagi
+    case 'batal':
+      if (l.nama === 'kalibrasi') return next({ nama: 'panduan' });
       return next({});
 
     case 'kalibrasi': {

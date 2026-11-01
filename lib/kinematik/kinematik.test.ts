@@ -155,6 +155,22 @@ test('sampel: maksimal 1 event per dorong()', () => {
   for (let t = 5000; t < 6000; t += 33) assert.ok(m.dorong(frame(t, {}, r)).filter(e => e.jenis === 'sampel').length <= 1);
 });
 
+const sampelDari = (ev: EventMesin[]) => ev.flatMap(e => (e.jenis === 'sampel' ? [e] : []));
+
+test('tingkat: >= 1 tepat saat penanda batang menyala, di bawah 0,5 saat netral', () => {
+  const sampel = sampelDari(jalankan(m, 5000, 15000, t => (t >= 8000 ? kondong : {})));
+  assert.ok(sampel.some(e => e.tingkat.batang! >= 1));
+  assert.ok(sampel.every(e => (e.tingkat.batang! >= 1) === e.penanda.batang));
+  assert.ok(sampel.filter(e => e.t < 8000).every(e => e.tingkat.batang! < 0.5));
+});
+
+test('tingkat: null bila mode Mati, atau toleransi batang Abaikan', () => {
+  const mati = sampelDari(jalankan(buatMesin({ ...cfg, mode: 'mati' }, b), 5000, 7000, () => kondong));
+  assert.ok(mati.every(e => e.tingkat.batang === null && e.tingkat.bahu === null));
+  const abaikan = sampelDari(jalankan(buatMesin({ ...cfg, tolBatang: 'abaikan' }, b), 5000, 7000, () => kondong));
+  assert.ok(abaikan.every(e => e.tingkat.batang === null && e.tingkat.bahu !== null));
+});
+
 test('celah 2 dtk tidak diinterpolasi', () => {
   const rs = buatResampler();
   rs.dorong(keSampel(frame(0, {}, r), 'kanan', null));

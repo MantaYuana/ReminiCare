@@ -112,6 +112,9 @@ export function pesanGalat(e: { message?: string; status?: number } | null): str
   if (msg.includes('tidak_terikat')) {
     return 'Akun ini belum terhubung ke pasien.';
   }
+  if (msg.includes('anonim_ditolak')) {
+    return 'Sesi lama tidak berlaku lagi. Keluar, lalu masuk dengan akun Google.';
+  }
 
   // Kode lama yang tetap
   if (msg.includes('bukan_pasien_anda')) {

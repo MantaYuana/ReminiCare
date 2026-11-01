@@ -1,4 +1,6 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
 
 export type TitikGrafik = {
   y: number | null; // null = celah, garis tidak disambung melewati titik ini
@@ -32,16 +34,8 @@ type TitikTerhitung = {
  * - Kontras elemen non-teks >= 3:1 terhadap latar putih #ffffff (sumbu, gridline, data, acuan).
  * - Perbedaan informasi tidak hanya lewat warna (bentuk titik, huruf P/M, titik tebal, garis putus-putus + label).
  *
- * Perhitungan ukuran font SVG untuk NFR-6 (teks efektif >= 18px pada lebar layar >= 320px):
- * Lebar viewBox yang dipilih = 400 unit koordinat.
- * Pada layar ponsel dengan lebar render 320px (viewport terkecil standar mobile), faktor skala SVG = 320 / 400 = 0.8.
- * Agar seluruh teks SVG hasil render pada layar (label sumbu, acuan, dan huruf titik) memiliki ukuran efektif >= 18px:
- *   font_size_svg * skala >= 18px  ==>  font_size_svg >= 18 / 0.8 = 22.5px.
- * Oleh karena itu, kita gunakan font-size: 23px pada seluruh elemen teks utama (fontSizeTeks) dan huruf penanda/acuan (fontSizeHuruf).
- * Hasil render:
- * - Pada layar 320px: 23px * 0.8 = 18.4px (>= 18px, lolos NFR-6).
- * - Pada layar 360px: 23px * (360 / 400) = 20.7px (>= 18px, lolos NFR-6).
- * - Pada layar desktop >= 400px: >= 23px.
+ * Ukuran kanvas SVG mengikuti lebar kontainer (1 unit koordinat = 1 px), jadi semua teks
+ * tampil tepat 18px (NFR-6) tanpa membengkak di layar lebar. Lebar minimum 300px.
  */
 export default function Grafik({
   judul,
@@ -52,10 +46,24 @@ export default function Grafik({
   acuan,
   tinggi = 200,
 }: PropsGrafik): React.JSX.Element {
+  const wadah = useRef<HTMLDivElement>(null);
+  const [lebar, setLebar] = useState(400);
+
+  useEffect(() => {
+    const el = wadah.current;
+    if (!el) return;
+    const ukur = () => setLebar(Math.max(300, Math.round(el.clientWidth)));
+    ukur();
+    const pengamat = new ResizeObserver(ukur);
+    pengamat.observe(el);
+    return () => pengamat.disconnect();
+  }, []);
+
   // Keadaan tepi: titik kosong
   if (!titik || titik.length === 0) {
     return (
       <div
+        ref={wadah}
         role="img"
         aria-label={`${judul}: Belum ada data`}
         className="flex min-h-[160px] w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center text-lg font-medium text-slate-700"
@@ -65,13 +73,13 @@ export default function Grafik({
     );
   }
 
-  const VIEWBOX_LEBAR = 400;
+  const VIEWBOX_LEBAR = lebar;
   const VIEWBOX_TINGGI = tinggi;
 
-  const padKiri = 80; // ruang untuk label sumbu y dan satuan (font 23px)
-  const padKanan = 35; // ruang agar titik kanan tidak terpotong
-  const padAtas = 34; // ruang agar label acuan dan titik puncak tidak terpotong di bagian atas
-  const padBawah = 45; // ruang untuk tick mark dan label sumbu x
+  const padKiri = 62; // ruang untuk label sumbu y dan satuan (font 18px)
+  const padKanan = 24; // ruang agar titik kanan tidak terpotong
+  const padAtas = 40; // ruang untuk label acuan di atas plot dan titik puncak
+  const padBawah = 40; // ruang untuk tick mark dan label sumbu x
 
   const plotLebar = VIEWBOX_LEBAR - padKiri - padKanan;
   const plotTinggi = Math.max(VIEWBOX_TINGGI - padAtas - padBawah, 50);
@@ -144,12 +152,12 @@ export default function Grafik({
   const yTengahCoord = padAtas + plotTinggi / 2;
 
   // Ukuran font SVG (sesuai perhitungan NFR-6 di atas: teks >= 18px pada render 320px)
-  const fontSizeTeks = 23;
-  const fontSizeHuruf = 23;
+  const fontSizeTeks = 18;
+  const fontSizeHuruf = 18;
 
   // Pencegahan tabrakan label sumbu X berdasarkan panjang label dan jarak antar titik
   const panjangLabelMaks = Math.max(...titik.map((t) => t.label.length), 1);
-  const lebarPerKarakter = 14; // perkiraan lebar rata-rata per karakter pada font-size 23px
+  const lebarPerKarakter = 11; // perkiraan lebar rata-rata per karakter pada font-size 18px
   const jarakAman = 10;
   const lebarButuh = panjangLabelMaks * lebarPerKarakter + jarakAman;
 
@@ -180,15 +188,15 @@ export default function Grafik({
   }
 
   return (
-    // Catatan: 'tinggi' adalah satuan koordinat viewBox (dengan lebar 400), bukan piksel literal di layar.
-    // SVG akan berskala secara proporsional di dalam wadah responsif max-w-[640px] ini.
-    <div className="mx-auto w-full max-w-[640px] overflow-hidden">
+    // Lebar kanvas = lebar wadah terukur, tinggi = prop `tinggi`; 1 unit koordinat = 1 px.
+    <div ref={wadah} className="mx-auto w-full max-w-[900px] overflow-hidden">
       <svg
         role="img"
         aria-label={ringkasanAria}
         viewBox={`0 0 ${VIEWBOX_LEBAR} ${VIEWBOX_TINGGI}`}
-        className="w-full h-auto block select-none"
-        preserveAspectRatio="xMidYMid meet"
+        width={VIEWBOX_LEBAR}
+        height={VIEWBOX_TINGGI}
+        className="block select-none"
       >
         <title>{ringkasanAria}</title>
 
@@ -242,8 +250,8 @@ export default function Grafik({
               strokeDasharray="6 4"
             />
             <text
-              x={padKiri + plotLebar - 4}
-              y={yAcuan - 6}
+              x={padKiri + plotLebar}
+              y={padAtas - 14}
               textAnchor="end"
               fontSize={fontSizeHuruf}
               fontWeight="bold"
@@ -408,7 +416,7 @@ export default function Grafik({
                 />
               )}
 
-              {/* Huruf P / M tergambar di atas titik untuk pembedaan non-warna (font 23px) */}
+              {/* Huruf P / M tergambar di atas titik untuk pembedaan non-warna (font 18px) */}
               {huruf && (
                 <text
                   x={pt.x}

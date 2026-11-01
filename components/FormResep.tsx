@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, pesanGalat } from '../lib/supabase';
+import { IkonPanahBawah } from './ikon';
 
 export type SisiTerdampak = 'kiri' | 'kanan';
 export type JenisGerakan = 'jangkau_depan' | 'jangkau_samping';
@@ -36,13 +37,53 @@ export type ResepTamu = {
   kalimat_condong: PilihanKalimatCondong;
 };
 
-export interface FormResepProps {
-  mode?: 'baru' | 'edit' | 'tamu';
+type PropsUmum = {
   pasien?: DataResepPasien | null;
   onBerhasil?: (pasienId: string) => void;
   onBatal?: () => void;
-  onKirim?: (r: ResepTamu) => void;
-}
+};
+
+// Mode tamu wajib membawa onKirim (dicek tsc); mode baru/edit tidak memakainya
+export type FormResepProps =
+  | (PropsUmum & { mode?: 'baru' | 'edit'; onKirim?: never })
+  | (PropsUmum & { mode: 'tamu'; onKirim: (r: ResepTamu) => void });
+
+const kelasInput = 'min-h-[48px] w-full rounded-lg border border-slate-300 bg-white px-3 text-base focus:border-brand-700 focus:outline-none';
+const kelasLabel = 'mb-1 block text-sm font-medium';
+
+const Pilihan = ({ id, label, nilai, onUbah, children }: {
+  id: string; label: string; nilai: string; onUbah: (v: string) => void; children: React.ReactNode;
+}) => (
+  <div>
+    <label htmlFor={id} className={kelasLabel}>{label}</label>
+    <div className="relative">
+      <select id={id} value={nilai} onChange={e => onUbah(e.target.value)} className={`${kelasInput} appearance-none pr-10`}>
+        {children}
+      </select>
+      <IkonPanahBawah className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2" />
+    </div>
+  </div>
+);
+
+const Radio = ({ nama, nilai, dipilih, onPilih, label, ket, nonaktif }: {
+  nama: string; nilai: string; dipilih: boolean; onPilih?: () => void; label: string; ket: string; nonaktif?: boolean;
+}) => (
+  <label className={`flex min-h-[44px] items-start gap-3 ${nonaktif ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+    <input
+      type="radio"
+      name={nama}
+      value={nilai}
+      checked={dipilih}
+      onChange={onPilih}
+      disabled={nonaktif}
+      className="mt-1 h-5 w-5 accent-brand-700"
+    />
+    <span className="text-base">
+      {label}
+      <span className="block text-sm text-muted">{ket}</span>
+    </span>
+  </label>
+);
 
 export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }: FormResepProps) {
   const router = useRouter();
@@ -81,16 +122,16 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
   // Pengaman submit berulang (double click/submit)
   const sedangSubmitRef = useRef<boolean>(false);
 
-  const handleToggleGerakan = (g: JenisGerakan) => {
-    setGerakan((prev) => {
-      if (prev.includes(g)) {
-        if (prev.length <= 1) return prev; // Minimal 1 gerakan wajib dipilih
-        return prev.filter((item) => item !== g);
-      } else {
-        if (prev.length >= 2) return prev; // Maksimal 2 gerakan di P0
-        return [...prev, g];
-      }
-    });
+  // Dropdown gerakan: satu gerakan atau keduanya (urutan tetap depan lalu samping)
+  const pilihanGerakan: 'depan' | 'samping' | 'keduanya' =
+    gerakan.length >= 2 ? 'keduanya' : gerakan[0] === 'jangkau_samping' ? 'samping' : 'depan';
+
+  const handlePilihGerakan = (v: string) => {
+    setGerakan(
+      v === 'keduanya' ? ['jangkau_depan', 'jangkau_samping']
+      : v === 'samping' ? ['jangkau_samping']
+      : ['jangkau_depan']
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -104,15 +145,12 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
 
     // 1. Validasi klien persis constraint DB
     // Mode tamu: nama panggilan tidak divalidasi
-    if (!isTamu) {
-      const namaBersih = namaPanggilan.trim();
-      if (namaBersih.length < 1 || namaBersih.length > 40) {
-        sedangSubmitRef.current = false;
-        setGalat('Nama panggilan harus diisi antara 1 sampai 40 karakter.');
-        return;
-      }
+    const namaBersih = namaPanggilan.trim();
+    if (!isTamu && (namaBersih.length < 1 || namaBersih.length > 40)) {
+      sedangSubmitRef.current = false;
+      setGalat('Nama panggilan harus diisi antara 1 sampai 40 karakter.');
+      return;
     }
-    const namaBersih = isTamu ? '' : namaPanggilan.trim();
 
     if (sisiTerdampak !== 'kiri' && sisiTerdampak !== 'kanan') {
       sedangSubmitRef.current = false;
@@ -169,7 +207,7 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
       setGalat('Mode koreksi pada formulir hanya boleh Penuh atau Mati.');
       return;
     }
-    if ((!isEdit || isTamu) && modeKoreksi !== 'penuh' && modeKoreksi !== 'mati') {
+    if (!isEdit && modeKoreksi !== 'penuh' && modeKoreksi !== 'mati') {
       sedangSubmitRef.current = false;
       setGalat('Mode koreksi pada formulir baru hanya boleh Penuh atau Mati.');
       return;
@@ -184,19 +222,23 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
     // Mode tamu: panggil onKirim secara sinkron
     if (isTamu) {
       sedangSubmitRef.current = false;
-      if (onKirim) {
-        const nilaiTamu: ResepTamu = {
-          sisi_terdampak: sisiTerdampak,
-          gerakan,
-          repetisi: nRepetisi,
-          toleransi_batang: toleransiBatang,
-          toleransi_bahu: toleransiBahu,
-          durasi_persen: nDurasi,
-          mode_koreksi: modeKoreksi as 'penuh' | 'mati',
-          kalimat_condong: kalimatCondong,
-        };
-        onKirim(nilaiTamu);
-      }
+      onKirim?.({
+        sisi_terdampak: sisiTerdampak,
+        gerakan,
+        repetisi: nRepetisi,
+        toleransi_batang: toleransiBatang,
+        toleransi_bahu: toleransiBahu,
+        durasi_persen: nDurasi,
+        mode_koreksi: modeKoreksi as 'penuh' | 'mati',
+        kalimat_condong: kalimatCondong,
+      });
+      return;
+    }
+
+    // mode="edit" eksplisit tanpa id (data belum termuat) tidak boleh jatuh ke jalur insert
+    if (isEdit && !pasien?.id) {
+      sedangSubmitRef.current = false;
+      setGalat('Data pasien belum termuat. Muat ulang halaman lalu coba lagi.');
       return;
     }
 
@@ -300,146 +342,63 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="max-w-2xl mx-auto space-y-6 text-lg">
-      {/* Peringatan Mode Edit */}
+    <form onSubmit={handleSubmit} noValidate className="flex w-full flex-col gap-5">
       {isEdit && (
-        <div className="p-4 bg-amber-50 border-2 border-amber-400 text-amber-900 rounded-xl flex items-center gap-3">
-          <span aria-hidden="true" className="text-2xl font-bold">ℹ️</span>
-          <div>
-            <p className="font-bold text-lg">Mode Edit Resep</p>
-            <p className="text-lg text-amber-800">Perubahan resep ini berlaku mulai sesi berikutnya.</p>
-          </div>
+        <div className="rc-info">
+          <p className="font-semibold">Mode edit resep</p>
+          <p>Perubahan resep ini berlaku mulai sesi berikutnya.</p>
         </div>
       )}
 
-      {/* Tampilan Galat */}
       {galat && (
-        <div role="alert" className="p-4 bg-red-50 border-2 border-red-500 text-red-900 rounded-xl flex items-start gap-3">
-          <span aria-hidden="true" className="text-2xl">⚠️</span>
-          <div>
-            <p className="font-bold text-lg">Periksa Kembali Data Resep</p>
-            <p className="text-lg">{galat}</p>
-          </div>
+        <div role="alert" className="rc-alert">
+          <p className="font-semibold">Periksa kembali data resep</p>
+          <p>{galat}</p>
         </div>
       )}
 
-      {/* Tampilan Sukses */}
       {pesanSukses && (
-        <div role="status" className="p-4 bg-green-50 border-2 border-green-500 text-green-900 rounded-xl flex items-start gap-3">
-          <span aria-hidden="true" className="text-2xl">✅</span>
-          <div>
-            <p className="font-bold text-lg">Pembaruan Berhasil</p>
-            <p className="text-lg">{pesanSukses}</p>
-          </div>
+        <div role="status" className="rc-ok">
+          <p className="font-semibold">Pembaruan berhasil</p>
+          <p>{pesanSukses}</p>
         </div>
       )}
 
-      {/* 1. Nama Panggilan — disembunyikan di mode tamu */}
       {!isTamu && (
-        <div className="space-y-2">
-          <label htmlFor="field-nama" className="block font-semibold text-gray-900 text-lg">
-            Nama Panggilan Pasien <span className="text-red-600">*</span>
-          </label>
-          <p className="text-lg text-gray-600" id="hint-nama">
-            Nama sapaan pasien untuk instruksi suara ramah (1–40 karakter).
-          </p>
+        <div>
+          <label htmlFor="field-nama" className={kelasLabel}>Nama panggilan pasien</label>
           <input
             id="field-nama"
             type="text"
             maxLength={40}
             value={namaPanggilan}
             onChange={(e) => setNamaPanggilan(e.target.value)}
-            aria-describedby="hint-nama"
             required
             placeholder="Contoh: Pak Wayan"
-            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
+            className={kelasInput}
           />
         </div>
       )}
 
-      {/* 2. Sisi Terdampak */}
-      <fieldset className="space-y-2">
-        <legend className="block font-semibold text-gray-900 text-lg">
-          {isTamu ? 'Lengan yang Dilatih' : 'Sisi Lengan Terdampak Stroke'} <span className="text-red-600">*</span>
-        </legend>
-        <p className="text-lg text-gray-600">
-          {isTamu ? 'Pilih lengan yang ingin Anda latih.' : 'Sisi tubuh hemiparesis yang dilatih menggunakan kamera.'}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          <label className={`min-h-[44px] flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            sisiTerdampak === 'kanan' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="radio"
-              name="sisi_terdampak"
-              value="kanan"
-              checked={sisiTerdampak === 'kanan'}
-              onChange={() => setSisiTerdampak('kanan')}
-              className="w-6 h-6 text-blue-600"
-            />
-            <span className="text-lg">{isTamu ? 'Lengan kanan' : 'Lengan Kanan'}</span>
-          </label>
-          <label className={`min-h-[44px] flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            sisiTerdampak === 'kiri' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="radio"
-              name="sisi_terdampak"
-              value="kiri"
-              checked={sisiTerdampak === 'kiri'}
-              onChange={() => setSisiTerdampak('kiri')}
-              className="w-6 h-6 text-blue-600"
-            />
-            <span className="text-lg">{isTamu ? 'Lengan kiri' : 'Lengan Kiri'}</span>
-          </label>
-        </div>
-      </fieldset>
+      <Pilihan
+        id="field-sisi"
+        label={isTamu ? 'Lengan yang dilatih' : 'Sisi lengan yang terdampak stroke'}
+        nilai={sisiTerdampak}
+        onUbah={(v) => setSisiTerdampak(v as SisiTerdampak)}
+      >
+        <option value="kanan">Lengan kanan</option>
+        <option value="kiri">Lengan kiri</option>
+      </Pilihan>
 
-      {/* 3. Gerakan Latihan */}
-      <fieldset className="space-y-2">
-        <legend className="block font-semibold text-gray-900 text-lg">
-          Gerakan Latihan yang Diresepkan <span className="text-red-600">*</span>
-        </legend>
-        <p className="text-lg text-gray-600">
-          Pilih minimal 1 gerakan latihan (maksimal 2 pada fase P0).
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          <label className={`min-h-[44px] flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            gerakan.includes('jangkau_depan') ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="checkbox"
-              value="jangkau_depan"
-              checked={gerakan.includes('jangkau_depan')}
-              onChange={() => handleToggleGerakan('jangkau_depan')}
-              className="w-6 h-6 rounded text-blue-600"
-            />
-            <span className="text-lg">Jangkau Depan (Fleksi Bahu)</span>
-          </label>
-          <label className={`min-h-[44px] flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            gerakan.includes('jangkau_samping') ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="checkbox"
-              value="jangkau_samping"
-              checked={gerakan.includes('jangkau_samping')}
-              onChange={() => handleToggleGerakan('jangkau_samping')}
-              className="w-6 h-6 rounded text-blue-600"
-            />
-            <span className="text-lg">Jangkau Samping (Abduksi Bahu)</span>
-          </label>
-        </div>
-      </fieldset>
+      <Pilihan id="field-gerakan" label="Gerakan yang diresepkan" nilai={pilihanGerakan} onUbah={handlePilihGerakan}>
+        <option value="depan">Jangkau depan (fleksi bahu)</option>
+        <option value="samping">Jangkau samping (abduksi bahu)</option>
+        <option value="keduanya">Keduanya</option>
+      </Pilihan>
 
-      {/* 4. Target Repetisi & Sesi per Minggu */}
-      <div className={isTamu ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}>
-        <div className="space-y-2">
-          <label htmlFor="field-repetisi" className="block font-semibold text-gray-900 text-lg">
-            Target Repetisi per Gerakan <span className="text-red-600">*</span>
-          </label>
-          <p className="text-lg text-gray-600" id="hint-repetisi">
-            {isTamu ? 'Rentang 5–20 repetisi (bawaan: 5).' : 'Rentang 5–20 repetisi (bawaan: 10).'}
-          </p>
+      <div className={isTamu ? '' : 'grid gap-5 sm:grid-cols-2'}>
+        <div>
+          <label htmlFor="field-repetisi" className={kelasLabel}>Target repetisi per gerakan</label>
           <input
             id="field-repetisi"
             type="number"
@@ -451,18 +410,15 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
               const val = e.target.value;
               setRepetisi(val === '' ? '' : parseInt(val, 10));
             }}
-            aria-describedby="hint-repetisi"
             required
-            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
+            placeholder="5–20"
+            className={`${kelasInput}`}
           />
         </div>
 
         {!isTamu && (
-          <div className="space-y-2">
-            <label htmlFor="field-sesi-minggu" className="block font-semibold text-gray-900 text-lg">
-              Target Sesi per Minggu <span className="text-red-600">*</span>
-            </label>
-            <p className="text-lg text-gray-600" id="hint-sesi-minggu">Rentang 1–7 sesi dalam seminggu (bawaan: 3).</p>
+          <div>
+            <label htmlFor="field-sesi-minggu" className={kelasLabel}>Target sesi per minggu</label>
             <input
               id="field-sesi-minggu"
               type="number"
@@ -474,63 +430,30 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
                 const val = e.target.value;
                 setSesiPerMinggu(val === '' ? '' : parseInt(val, 10));
               }}
-              aria-describedby="hint-sesi-minggu"
               required
-              className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
+              placeholder="1–7"
+              className={`${kelasInput}`}
             />
           </div>
         )}
       </div>
 
-      {/* 5. Toleransi Kompensasi Batang & Bahu */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label htmlFor="field-toleransi-batang" className="block font-semibold text-gray-900 text-lg">
-            Toleransi Batang Tubuh
-          </label>
-          <p className="text-lg text-gray-600" id="hint-tol-batang">Ambang condong &amp; miring badan.</p>
-          <select
-            id="field-toleransi-batang"
-            value={toleransiBatang}
-            onChange={(e) => setToleransiBatang(e.target.value as TingkatToleransi)}
-            aria-describedby="hint-tol-batang"
-            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none bg-white"
-          >
-            <option value="abaikan">Abaikan (Tanpa deteksi batang)</option>
-            <option value="longgar">Longgar (Sensitivitas rendah)</option>
-            <option value="normal">Normal (Standar klinis)</option>
-            <option value="ketat">Ketat (Sensitivitas tinggi)</option>
-          </select>
-        </div>
+      <Pilihan id="field-toleransi-batang" label="Toleransi batang tubuh" nilai={toleransiBatang} onUbah={(v) => setToleransiBatang(v as TingkatToleransi)}>
+        <option value="abaikan">Abaikan (tanpa deteksi batang)</option>
+        <option value="longgar">Longgar (sensitivitas rendah)</option>
+        <option value="normal">Normal (standar klinis)</option>
+        <option value="ketat">Ketat (sensitivitas tinggi)</option>
+      </Pilihan>
 
-        <div className="space-y-2">
-          <label htmlFor="field-toleransi-bahu" className="block font-semibold text-gray-900 text-lg">
-            Toleransi Elevasi Bahu
-          </label>
-          <p className="text-lg text-gray-600" id="hint-tol-bahu">Ambang bahu terangkat (penanda lemah).</p>
-          <select
-            id="field-toleransi-bahu"
-            value={toleransiBahu}
-            onChange={(e) => setToleransiBahu(e.target.value as TingkatToleransi)}
-            aria-describedby="hint-tol-bahu"
-            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none bg-white"
-          >
-            <option value="abaikan">Abaikan (Tanpa deteksi bahu)</option>
-            <option value="longgar">Longgar (Sensitivitas rendah)</option>
-            <option value="normal">Normal (Standar klinis)</option>
-            <option value="ketat">Ketat (Sensitivitas tinggi)</option>
-          </select>
-        </div>
-      </div>
+      <Pilihan id="field-toleransi-bahu" label="Toleransi elevasi bahu" nilai={toleransiBahu} onUbah={(v) => setToleransiBahu(v as TingkatToleransi)}>
+        <option value="abaikan">Abaikan (tanpa deteksi bahu)</option>
+        <option value="longgar">Longgar (sensitivitas rendah)</option>
+        <option value="normal">Normal (standar klinis)</option>
+        <option value="ketat">Ketat (sensitivitas tinggi)</option>
+      </Pilihan>
 
-      {/* 6. Durasi Persen Kompensasi */}
-      <div className="space-y-2">
-        <label htmlFor="field-durasi" className="block font-semibold text-gray-900 text-lg">
-          Ambang Durasi Kompensasi (% fase gerak)
-        </label>
-        <p className="text-lg text-gray-600" id="hint-durasi">
-          Fraksi waktu repetisi saat kompensasi aktif agar dihitung terkompensasi (10–80%, bawaan: 30%).
-        </p>
+      <div>
+        <label htmlFor="field-durasi" className={kelasLabel}>Ambang durasi kompensasi (% fase gerak)</label>
         <input
           id="field-durasi"
           type="number"
@@ -542,147 +465,39 @@ export default function FormResep({ mode, pasien, onBerhasil, onBatal, onKirim }
             const val = e.target.value;
             setDurasiPersen(val === '' ? '' : parseInt(val, 10));
           }}
-          aria-describedby="hint-durasi"
           required
-          className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 rounded-xl text-lg focus:border-blue-600 focus:outline-none"
+          placeholder="10–80, bawaan 30"
+          className={kelasInput}
         />
       </div>
 
-      {/* 7. Mode Koreksi (Hanya Penuh / Mati di P0 dan mode tamu; mempertahankan 'ringkasan' bila nilai DB asli) */}
-      <fieldset className="space-y-2">
-        <legend className="block font-semibold text-gray-900 text-lg">
-          Mode Koreksi Suara <span className="text-red-600">*</span>
-        </legend>
-        <p className="text-lg text-gray-600">
-          {isTamu ? 'Pilih apakah Anda ingin mendengar koreksi suara atau berlatih tanpa koreksi.' : 'Di fase P0, formulir menyediakan pilihan mode Penuh atau Mati.'}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          <label className={`min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            modeKoreksi === 'penuh' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="radio"
-              name="mode_koreksi"
-              value="penuh"
-              checked={modeKoreksi === 'penuh'}
-              onChange={() => setModeKoreksi('penuh')}
-              className="w-6 h-6 mt-0.5 text-blue-600"
-            />
-            <div>
-              <span className="block text-lg">Penuh</span>
-              <span className="block text-lg font-normal text-gray-600">Koreksi suara aktif saat kompensasi terdeteksi</span>
-            </div>
-          </label>
-          <label className={`min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            modeKoreksi === 'mati' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="radio"
-              name="mode_koreksi"
-              value="mati"
-              checked={modeKoreksi === 'mati'}
-              onChange={() => setModeKoreksi('mati')}
-              className="w-6 h-6 mt-0.5 text-blue-600"
-            />
-            <div>
-              <span className="block text-lg">Mati</span>
-              <span className="block text-lg font-normal text-gray-600">Pencatatan data tanpa koreksi suara audio</span>
-            </div>
-          </label>
-
-          {/* Opsi nonaktif bila nilai awal dari database adalah 'ringkasan' (P1) — tidak tampil di mode tamu */}
+      <fieldset>
+        <legend className={kelasLabel}>Mode koreksi suara</legend>
+        <div className="flex flex-col gap-1 sm:flex-row sm:gap-8">
+          <Radio nama="mode_koreksi" nilai="penuh" dipilih={modeKoreksi === 'penuh'} onPilih={() => setModeKoreksi('penuh')} label="Penuh" ket="Koreksi suara aktif saat kompensasi terdeteksi" />
+          <Radio nama="mode_koreksi" nilai="mati" dipilih={modeKoreksi === 'mati'} onPilih={() => setModeKoreksi('mati')} label="Mati" ket="Hanya mencatat data, tanpa koreksi suara" />
+          {/* Tampil nonaktif hanya bila nilai awal dari database adalah 'ringkasan' (P1) */}
           {!isTamu && modeAsli === 'ringkasan' && (
-            <div className={`sm:col-span-2 min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl ${
-              modeKoreksi === 'ringkasan' ? 'border-gray-400 bg-gray-100 font-semibold' : 'border-gray-200 bg-gray-50 opacity-60'
-            }`}>
-              <input
-                type="radio"
-                name="mode_koreksi"
-                value="ringkasan"
-                checked={modeKoreksi === 'ringkasan'}
-                disabled
-                className="w-6 h-6 mt-0.5 text-gray-500 cursor-not-allowed"
-              />
-              <div>
-                <span className="block text-lg">Ringkasan (dipertahankan)</span>
-                <span className="block text-lg font-normal text-gray-600">
-                  Resep ini sebelumnya memakai mode Ringkasan (P1). Nilai ini tetap dipertahankan kecuali Anda memilih Penuh atau Mati.
-                </span>
-              </div>
-            </div>
+            <Radio nama="mode_koreksi" nilai="ringkasan" dipilih={modeKoreksi === 'ringkasan'} label="Ringkasan (dipertahankan)" ket="Nilai lama (P1), tetap dipakai kecuali Anda memilih Penuh atau Mati" nonaktif />
           )}
         </div>
       </fieldset>
 
-      {/* 8. Kalimat Koreksi Condong */}
-      <fieldset className="space-y-2">
-        <legend className="block font-semibold text-gray-900 text-lg">
-          Kalimat Koreksi Tubuh Condong
-        </legend>
-        <p className="text-lg text-gray-600">
-          Instruksi suara yang diputar saat pasien memajukan badan berlebih.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          <label className={`min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            kalimatCondong === 'sandaran' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="radio"
-              name="kalimat_condong"
-              value="sandaran"
-              checked={kalimatCondong === 'sandaran'}
-              onChange={() => setKalimatCondong('sandaran')}
-              className="w-6 h-6 mt-0.5 text-blue-600"
-            />
-            <div>
-              <span className="block text-lg">Menempel sandaran</span>
-              <span className="block text-lg font-normal text-gray-600">&ldquo;Punggung tetap menempel di sandaran kursi&rdquo;</span>
-            </div>
-          </label>
-          <label className={`min-h-[44px] flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer transition-colors ${
-            kalimatCondong === 'tegak' ? 'border-blue-600 bg-blue-50 font-semibold' : 'border-gray-200 hover:bg-gray-50'
-          }`}>
-            <input
-              type="radio"
-              name="kalimat_condong"
-              value="tegak"
-              checked={kalimatCondong === 'tegak'}
-              onChange={() => setKalimatCondong('tegak')}
-              className="w-6 h-6 mt-0.5 text-blue-600"
-            />
-            <div>
-              <span className="block text-lg">Tetap tegak</span>
-              <span className="block text-lg font-normal text-gray-600">&ldquo;Badan tetap tegak, jangan condong ke depan&rdquo;</span>
-            </div>
-          </label>
+      <fieldset>
+        <legend className={kelasLabel}>Kalimat koreksi tubuh condong</legend>
+        <div className="flex flex-col gap-1 sm:flex-row sm:gap-8">
+          <Radio nama="kalimat_condong" nilai="sandaran" dipilih={kalimatCondong === 'sandaran'} onPilih={() => setKalimatCondong('sandaran')} label="Menempel sandaran" ket="“Punggung tetap menempel di sandaran kursi”" />
+          <Radio nama="kalimat_condong" nilai="tegak" dipilih={kalimatCondong === 'tegak'} onPilih={() => setKalimatCondong('tegak')} label="Tetap tegak" ket="“Badan tetap tegak, jangan condong ke depan”" />
         </div>
       </fieldset>
 
-      {/* Tombol Aksi NFR-6: Tombol utama ≥ 64px, kontrol lain ≥ 44×44px */}
-      <div className="pt-4 space-y-3">
-        <button
-          type="submit"
-          disabled={sedangSimpan}
-          className="w-full min-h-[64px] px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xl rounded-xl shadow-md transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-        >
-          {sedangSimpan ? (
-            <span>Menyimpan resep...</span>
-          ) : isTamu ? (
-            <span>Mulai latihan</span>
-          ) : isEdit ? (
-            <span>Simpan Perubahan Resep</span>
-          ) : (
-            <span>Simpan dan Terbitkan Resep</span>
-          )}
+      <div className="flex flex-col gap-3 pt-2">
+        <button type="submit" disabled={sedangSimpan} className="rc-btn">
+          {sedangSimpan ? 'Menyimpan resep…' : isTamu ? 'Mulai latihan' : isEdit ? 'Simpan Perubahan Resep' : 'Simpan dan Terbitkan Resep'}
         </button>
 
         {onBatal && (
-          <button
-            type="button"
-            onClick={onBatal}
-            disabled={sedangSimpan}
-            className="w-full min-h-[44px] px-4 py-2 border-2 border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold rounded-xl transition-colors cursor-pointer"
-          >
+          <button type="button" onClick={onBatal} disabled={sedangSimpan} className="rc-btn-2">
             Batal
           </button>
         )}

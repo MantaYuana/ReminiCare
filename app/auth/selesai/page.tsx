@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase, cekPeran, pesanGalat } from '../../../lib/supabase';
+import { supabase, cekPeran, pesanGalat, lanjutAman } from '../../../lib/supabase';
 import { ruteUntuk } from '../../../lib/arah';
 import AuthLayout from '../../../components/AuthLayout';
 import PilihPeran from '../../../components/PilihPeran';
@@ -38,7 +38,9 @@ function Isi() {
         if (error) {
           if (error.message?.includes('peran_lain')) {
             await supabase.auth.signOut();
-            router.replace('/?galat=peran_lain');
+            // Dari tautan klaim: kembali ke /k supaya pasien bisa pilih akun lain tanpa memindai ulang QR
+            const tujuan = lanjutAman(lanjut);
+            router.replace(tujuan?.startsWith('/k/') ? `${tujuan}?galat=peran_lain` : '/?galat=peran_lain');
           } else {
             setGalat(pesanGalat(error));
             setTampil('galat');
@@ -60,7 +62,9 @@ function Isi() {
   }
 
   if (tampil === 'pilih') {
-    return <PilihPeran onSelesai={setelahPilih} onKeluar={() => router.replace('/')} />;
+    // Datang dari tautan klaim: peran dikunci ke pasien, karena peran tidak bisa diganti setelah dipilih
+    const kunci = lanjutAman(lanjut)?.startsWith('/k/') ? 'pasien' : undefined;
+    return <PilihPeran kunci={kunci} onSelesai={setelahPilih} onKeluar={() => router.replace('/')} />;
   }
 
   if (tampil === 'galat') {

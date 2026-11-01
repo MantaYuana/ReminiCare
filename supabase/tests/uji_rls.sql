@@ -43,6 +43,10 @@ values (
         '{}'
     );
 
+-- sesi anonim pra-V9 (refresh token lama masih hidup)
+insert into auth.users (id, aud, role, raw_user_meta_data, is_anonymous)
+values ('ffffffff-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '{}', true);
+
 do $$ begin
   perform set_config('request.jwt.claims', '{"sub":"aaaaaaaa-0000-0000-0000-000000000000","role":"authenticated"}', true);
   assert public.daftar('fisioterapis') = 'fisioterapis', 'daftar A';
@@ -64,6 +68,14 @@ do $$ begin
   exception when others then
     if sqlerrm not like '%peran_tidak_sah%' then raise; end if;
   end;
+  perform set_config('request.jwt.claims', '{"sub":"ffffffff-0000-0000-0000-000000000000","role":"authenticated","is_anonymous":true}', true);
+  begin
+    perform public.daftar('pasien');
+    raise exception 'GAGAL: sesi anonim bisa daftar';
+  exception when others then
+    if sqlerrm not like '%anonim_ditolak%' then raise; end if;
+  end;
+  assert not exists (select 1 from public.profil where id = 'ffffffff-0000-0000-0000-000000000000'), 'anonim tanpa profil';
   assert (select nama from public.profil where id = 'aaaaaaaa-0000-0000-0000-000000000000') = 'Terapis A', 'nama dari full_name';
   assert (select nama from public.profil where id = 'bbbbbbbb-0000-0000-0000-000000000000') = 'Terapis B', 'nama dari name';
   assert not exists (select 1 from public.profil where id = 'cccccccc-0000-0000-0000-000000000000'), 'tanpa sign up = tanpa profil';

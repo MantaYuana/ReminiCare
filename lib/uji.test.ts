@@ -82,6 +82,7 @@ function s(w: number, condongA: boolean): Extract<EventMesin, { jenis: 'sampel' 
       batang: condongA,
       bahu: false,
     },
+    tingkat: { batang: null, bahu: null },
   };
 }
 

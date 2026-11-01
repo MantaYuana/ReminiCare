@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase, cekPeran, masukGoogle, pesanGalat } from '../../../lib/supabase';
 import { normalKode } from '../../../lib/arah';
-import { simpanResep } from '../../../lib/lokal';
+import { simpanResep, keResepLokal, KOLOM_RESEP } from '../../../lib/lokal';
 import AuthLayout, { IkonGoogle } from '../../../components/AuthLayout';
 import LayarSetuju from '../../../components/LayarSetuju';
 import PilihPeran from '../../../components/PilihPeran';
+import LayarMuat from '../../../components/LayarMuat';
 
 type TampilLayar =
   | 'memuat' | 'kode_salah' | 'keluar' | 'terapis' | 'tanpa_peran'
@@ -32,7 +33,13 @@ export default function Page() {
     if (!kode) { setTampil('kode_salah'); return; }
     const peran = await cekPeran();
     switch (peran.jenis) {
-      case 'keluar':      setTampil('keluar'); break;
+      case 'keluar':
+        // /auth/selesai kembali ke sini setelah peran_lain, supaya tautan klaim tidak hilang
+        if (new URLSearchParams(location.search).get('galat') === 'peran_lain') {
+          setGalat(pesanGalat({ message: 'peran_lain' }));
+        }
+        setTampil('keluar');
+        break;
       case 'terapis':     setTampil('terapis'); break;
       case 'tanpa_peran': setTampil('tanpa_peran'); break;
       case 'pasien':      setTampil('terikat'); break;
@@ -70,42 +77,24 @@ export default function Page() {
     // Ambil resep pasien dan simpan lokal
     const { data: pasien } = await supabase
       .from('pasien')
-      .select('id, nama_panggilan, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong')
+      .select(KOLOM_RESEP)
       .eq('id', data)
       .maybeSingle();
 
-    if (pasien) {
-      simpanResep({
-        pasien_id: pasien.id,
-        nama_panggilan: pasien.nama_panggilan,
-        sisi_terdampak: pasien.sisi_terdampak,
-        gerakan: pasien.gerakan,
-        repetisi: pasien.repetisi,
-        sesi_per_minggu: pasien.sesi_per_minggu,
-        toleransi_batang: pasien.toleransi_batang,
-        toleransi_bahu: pasien.toleransi_bahu,
-        durasi_persen: pasien.durasi_persen,
-        mode_koreksi: pasien.mode_koreksi,
-        kalimat_condong: pasien.kalimat_condong,
-      });
-    }
+    if (pasien) simpanResep(keResepLokal(pasien));
 
     router.replace('/pasien');
   }
 
   if (tampil === 'memuat') {
-    return (
-      <main className="rc-wrap min-h-screen items-center justify-center text-center">
-        <p className="rc-sub" role="status">Memuat…</p>
-      </main>
-    );
+    return <LayarMuat />;
   }
 
   if (tampil === 'setuju') {
     return (
       <main>
         {galat && (
-          <div role="alert" className="rc-alert mx-5 mt-6">{galat}</div>
+          <div role="alert" className="rc-alert mx-5 mt-6 md:mx-10">{galat}</div>
         )}
         <LayarSetuju onSetuju={handleSetuju} sibuk={sibuk} />
       </main>

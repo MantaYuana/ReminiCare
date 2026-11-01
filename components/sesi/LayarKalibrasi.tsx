@@ -10,7 +10,8 @@ interface PropsLayarKalibrasi {
 
 const HITUNG_MUNDUR = 5; // detik
 
-// Dipasang ulang (key) oleh Sesi tiap percobaan, jadi hitung mundur mulai dari 5 lagi.
+// Overlay di atas pratinjau kamera (dirender di dalam pembungkus <video> oleh Sesi).
+// Dipasang ulang (key) oleh Sesi tiap percobaan dan tiap posisi hilang, jadi hitung mundur mulai dari 5 lagi.
 export default function LayarKalibrasi({ onSelesai }: PropsLayarKalibrasi) {
   const [detik, setDetik] = useState(HITUNG_MUNDUR);
   const selesaiRef = useRef(onSelesai);
@@ -31,22 +32,14 @@ export default function LayarKalibrasi({ onSelesai }: PropsLayarKalibrasi) {
   }, [detik]);
 
   return (
-    <div className="rc-wrap pt-4! items-center text-center">
-      <div>
-        <h1 className="rc-judul">Diam sebentar</h1>
-        <p className="rc-sub">Duduk tenang dan jangan bergerak sampai hitungan selesai.</p>
-      </div>
-
-      <div
-        className="flex h-40 w-40 items-center justify-center rounded-full border-8 border-brand-700 bg-white text-7xl font-bold tabular-nums text-brand-700"
-        role="timer"
-        aria-live="polite"
-        aria-label={`${detik} detik tersisa`}
-      >
-        {detik}
-      </div>
-
-      <p className="text-base text-muted">detik tersisa</p>
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/45 text-center text-white"
+      role="timer"
+      aria-live="polite"
+      aria-label={`${detik} detik tersisa`}
+    >
+      <p className="text-2xl font-semibold sm:text-4xl">Diam sebentar</p>
+      <div className="text-[7rem] font-bold leading-none tabular-nums sm:text-[12rem]">{detik}</div>
     </div>
   );
 }

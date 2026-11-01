@@ -67,6 +67,9 @@ export async function mulaiPose(
     if (!berjalan) return;
     animId = requestAnimationFrame(loop);
 
+    // Tunggu frame pertama benar-benar ada; play() bisa selesai sebelum itu dan detectForVideo
+    // pada video 0×0 gagal ("ROI width and height must be > 0"), lalu salah turun ke CPU.
+    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return;
     if (!landmarker || video.currentTime === lastTime || isProcessing) return;
     lastTime = video.currentTime;
     isProcessing = true;

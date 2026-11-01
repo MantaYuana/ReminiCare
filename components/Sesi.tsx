@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 
 import type { ResepSalinan } from '../lib/kinematik/mesin.ts';
 import { buatMesin, agregatSesi } from '../lib/kinematik/mesin.ts';
-import type { Sisi, EventMesin, Baseline, KonfigSesi, FrameMentah } from '../lib/kinematik/tipe.ts';
-import { KANDIDAT_CONDONG, SUARA_CONDONG, AMBANG_VERSI, ISTIRAHAT_MS, GATING } from '../lib/kinematik/tipe.ts';
+import type { Sisi, EventMesin, Baseline, KonfigSesi, FrameMentah, Tingkat } from '../lib/kinematik/tipe.ts';
+import { ISTIRAHAT_MS, GATING } from '../lib/kinematik/tipe.ts';
 import { buatPemantau, kalibrasi } from '../lib/kinematik/fitur.ts';
 import { mulaiPose } from '../lib/pose.ts';
+import { gambarKerangka } from '../lib/kerangka.ts';
 import { mulaiLayar, langkah, buatJuruSuara } from '../lib/sesi-state.ts';
 import type { Layar, Aksi } from '../lib/sesi-state.ts';
 import { suara } from '../lib/suara.ts';
@@ -22,6 +23,9 @@ import LayarKalibrasi  from './sesi/LayarKalibrasi';
 import LayarGerakan    from './sesi/LayarGerakan';
 import LayarIstirahat  from './sesi/LayarIstirahat';
 import LayarRingkasan  from './sesi/LayarRingkasan';
+import DashboardShell   from './DashboardShell';
+import type { ItemNav } from './DashboardShell';
+import { IkonBeranda, IkonLatihan, IkonChat, IkonPengaturan, IkonKeluar } from './ikon';
 
 // ── Tipe props ────────────────────────────────────────────────────────────
 
@@ -31,17 +35,22 @@ export interface PropsSesi {
   simpan: boolean;
   tamu?: boolean;
   kembali: string;
-  /** Dipanggil saat "Selesai" ditekan; bila ada menggantikan router.push(kembali). */
+  /** Dipanggil di setiap jalan keluar (Selesai, Berhenti, Kembali, Beranda); bila ada menggantikan router.push(kembali). */
   onSelesai?: () => void;
 }
 
 type Ringkas = { total: number; benar: number; pct: number | null };
+
+const JEDA_BINGKAI_MS = 5000;
+const BUANG_AWAL_KALIB_MS = 1000;   // 1 dtk pertama hitung mundur: pengguna masih menyesuaikan duduk
 
 // ── Komponen ──────────────────────────────────────────────────────────────
 
 export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, onSelesai }: PropsSesi) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const kanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const kerangkaRef = useRef<{ tingkat: Tingkat | null; redup: boolean }>({ tingkat: null, redup: true });
   const mulaiMs  = useRef(Date.now());
 
   const [layar, setLayar]           = useState<Layar>(() => mulaiLayar(suara.jalur !== null));
@@ -74,18 +83,29 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   resepRef.current = resep;
   const kembaliRef = useRef(kembali);
   kembaliRef.current = kembali;
+  const selesaiRef = useRef(onSelesai);
+  selesaiRef.current = onSelesai;
+  const tSkorRef = useRef(0);
+  const tBingkaiRef = useRef(0);                   // I-BINGKAI saat hitung mundur batal: jeda ≥ 5 dtk
+  const panduanDiucapRef = useRef(false);          // I-KAMERA/I-POSISI hanya sekali, bukan tiap hitung mundur batal
+
+  // Semua jalan keluar lewat sini: di /tamu, router.push('/tamu') ke halaman yang sama tidak berbuat apa-apa
+  const keluar = useCallback(() => {
+    if (selesaiRef.current) selesaiRef.current();
+    else router.push(kembaliRef.current);
+  }, [router]);
 
   // ── Reducer helper ───────────────────────────────────────────────────────
 
   const kirimAksi = useCallback((a: Aksi) => {
-    const { layar: baru, keluar } = langkah(layarRef.current, a, resepRef.current);
-    if (keluar) {
-      router.push(kembaliRef.current);   // Berhenti sebelum ada repetisi: tidak menyimpan apa pun
+    const { layar: baru, keluar: harusKeluar } = langkah(layarRef.current, a, resepRef.current);
+    if (harusKeluar) {
+      keluar();                          // Berhenti sebelum ada repetisi: tidak menyimpan apa pun
       return;
     }
     layarRef.current = baru;             // langsung, supaya beberapa event dalam satu frame berurutan
     setLayar(baru);
-  }, [router]);
+  }, [keluar]);
 
   // ── Handler event mesin ──────────────────────────────────────────────────
 
@@ -93,7 +113,12 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     const klip = juruSuara.current(e, Date.now());
     for (const k of klip) suara.ucap(k.kode, { prioritas: k.prioritas });
 
-    if (e.jenis === 'sampel') setSkor(e.skor);
+    // skor tiap frame; 4 Hz cukup untuk angka keyakinan, tanpa render ulang sebanyak frame kamera
+    if (e.jenis === 'sampel' && e.t - tSkorRef.current >= 250) {
+      tSkorRef.current = e.t;
+      setSkor(e.skor);
+    }
+    if (e.jenis === 'sampel') kerangkaRef.current = { tingkat: e.tingkat, redup: e.gating || !e.diDalam };
     if (e.jenis === 'gating') setGating(e.aktif);
     if (e.jenis === 'repetisi') kirimAksi({ t: 'repetisi', hitungan: e.hitungan });
   }, [kirimAksi]);
@@ -119,16 +144,28 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     }
 
     const l = layarRef.current;
-    if (l.nama === 'panduan') {
+    if (l.nama === 'panduan' || l.nama === 'kalibrasi') {
       if (!pemantauRef.current) {
         pemantauRef.current = buatPemantau(resepRef.current.sisi);
       }
       const { gating: g, skor: sk, diDalam: dd } = pemantauRef.current.dorong(f);
-      // gating baru aktif setelah 1 dtk buruk; frame buruk saat ini juga menahan tombol Siap (F05)
-      setGating(g || !dd || sk < GATING.masuk);
-      setSkor(sk);
-    } else if (l.nama === 'kalibrasi') {
-      kalibFramesRef.current.push(f);
+      // frame buruk saat ini juga dihitung buruk (tanpa jeda), supaya hitung mundur langsung batal
+      const buruk = g || !dd || sk < GATING.masuk;
+      setGating(buruk);
+
+      if (l.nama === 'panduan') {
+        if (!buruk) kirimAksi({ t: 'siap' });             // posisi lolos: hitung mundur mulai otomatis
+      } else if (buruk) {
+        suara.hentikan();                                 // angka yang sedang berjalan tidak boleh berlanjut
+        kirimAksi({ t: 'batal' });
+        const kini = Date.now();
+        if (kini - tBingkaiRef.current >= JEDA_BINGKAI_MS) {
+          tBingkaiRef.current = kini;
+          suara.ucap('I-BINGKAI');
+        }
+      } else {
+        kalibFramesRef.current.push(f);
+      }
     } else if (l.nama === 'gerakan') {
       if (!mesinRef.current && baselineRef.current) {
         const r = resepRef.current;
@@ -139,8 +176,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
           tolBahu: r.toleransi_bahu,
           mode: r.mode_koreksi,
           kalimat: r.kalimat_condong,
-          kandidat: tamu ? 'a' : KANDIDAT_CONDONG,
-          suaraCondong: SUARA_CONDONG,
+          kandidat: r.kandidat_condong,
+          suaraCondong: r.suara_condong,
         };
         const m = buatMesin(konfig, baselineRef.current);
         m.mulaiGerakan(r.gerakan[l.gerakanKe] ?? 'jangkau_depan');
@@ -149,8 +186,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       if (mesinRef.current) {
         for (const e of mesinRef.current.dorong(f)) tangani(e);
       }
+      if (kanvasRef.current) gambarKerangka(kanvasRef.current, f, kerangkaRef.current.tingkat, kerangkaRef.current.redup);
     }
-  }, [tamu, tangani]);
+  }, [tangani, kirimAksi]);
 
   // ── Setup kamera + PoseLandmarker (sekali per sesi; ulang saat "Coba lagi") ─
 
@@ -201,7 +239,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   // ── Suara saat masuk layar ───────────────────────────────────────────────
 
   useEffect(() => {
-    if (layar.nama === 'panduan') {
+    if (layar.nama === 'panduan' && !panduanDiucapRef.current) {
+      panduanDiucapRef.current = true;
       suara.ucap('I-KAMERA');
       suara.ucap('I-POSISI');
     }
@@ -232,8 +271,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
   // ── Kalibrasi selesai ───────────────────────────────────────────────────
 
   function handleKalibrasiSelesai() {
-    const frames = kalibFramesRef.current;
+    const semua = kalibFramesRef.current;
     kalibFramesRef.current = [];         // percobaan berikutnya mulai dari kosong
+    const frames = semua.length > 0 ? semua.filter(f => f.t >= semua[0].t + BUANG_AWAL_KALIB_MS) : semua;
     const res = kalibrasi(frames, resep.sisi);
     if (res.ok) {
       baselineRef.current = res.baseline;
@@ -273,12 +313,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       pasienId: pasienId ?? 'tamu',
       mulai: new Date(mulaiMs.current).toISOString(),
       selesai: new Date().toISOString(),
-      resep: {
-        ...resep,
-        kandidat_condong: tamu ? 'a' : KANDIDAT_CONDONG,
-        suara_condong: SUARA_CONDONG,
-        ambang_versi: AMBANG_VERSI,
-      },
+      resep,
       baseline: baselineRef.current,
       hasil: hasilSemua,
       fpsMedian,
@@ -292,8 +327,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     setRingkas({ total: barisSesi.rep_total, benar, pct });
 
     if (simpan && pasienId) {
-      sesiIdRef.current = id;
       if (tambah({ jenis: 'sesi', baris: barisSesi })) {
+        sesiIdRef.current = id;
         kirim();
       } else {
         setPesanSimpan('Memori ponsel penuh, sesi ini tidak tersimpan.');
@@ -306,7 +341,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       });
       setRiwayat(bacaRiwayat(pasienId));
     }
-  }, [layar.nama, simpan, pasienId, resep, tamu]);
+  }, [layar.nama, simpan, pasienId, resep]);
 
   // ── Handler tombol nyeri ─────────────────────────────────────────────────
 
@@ -316,18 +351,25 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     setNyeriSudahDipilih(true);
   }
 
-  function handleSelesai() {
-    if (onSelesai) onSelesai();
-    else router.push(kembali);
-  }
-
   // ── Render ───────────────────────────────────────────────────────────────
 
   const kamera = layar.nama === 'panduan' || layar.nama === 'kalibrasi';
-  const tahap = layar.nama === 'panduan' ? 0 : layar.nama === 'kalibrasi' ? 1 : null;
+  const menuAtas: ItemNav[] = [
+    { label: 'Beranda', ikon: <IkonBeranda />, onClick: keluar },
+    { label: 'Semua Latihan', ikon: <IkonLatihan />, nonaktif: true },
+    { label: 'Chat', ikon: <IkonChat />, nonaktif: true },
+  ];
+  const tahap = layar.nama === 'panduan' ? 0 : layar.nama === 'kalibrasi' ? 1 : layar.nama === 'istirahat' ? 2 : layar.nama === 'ringkasan' ? 3 : null;
 
   return (
-    <div className={`relative min-h-screen ${layar.nama === 'gerakan' ? 'bg-black' : 'bg-white'}`}>
+    <DashboardShell
+      judul="Sesi latihan"
+      atas={menuAtas}
+      bawah={tamu ? [] : [{ label: 'Settings', ikon: <IkonPengaturan />, nonaktif: true }]}
+      tombol={tamu ? { label: 'Kembali Ke Login', ikon: <IkonKeluar />, href: '/' } : undefined}
+      tanpaCari
+      penuh={layar.nama === 'gerakan'}
+    >
       {/* Penanda tahap (slot tetap supaya <video> di bawah tidak dipasang ulang) */}
       {tahap !== null ? <Langkah aktif={tahap} /> : <span hidden />}
 
@@ -339,7 +381,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             layar.nama === 'gerakan'
               ? 'fixed inset-0 z-0 h-full w-full'
               : kamera
-              ? 'mx-auto mt-4 aspect-video w-full max-w-lg px-5'
+              ? 'relative w-full'
               : 'pointer-events-none fixed -left-[9999px] -top-[9999px] h-[480px] w-[640px]'
           }
         >
@@ -348,10 +390,24 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
             autoPlay
             playsInline
             muted
-            className={`h-full w-full object-cover ${layar.nama === 'gerakan' ? '' : 'rounded-2xl border border-slate-300 bg-slate-900'}`}
+            className={`w-full ${layar.nama === 'gerakan' ? 'h-full object-cover' : `aspect-video max-h-[60vh] rounded-2xl border-4 bg-slate-900 object-contain ${layar.nama === 'kalibrasi' ? 'border-green-500' : kamera && gating ? 'border-amber-400' : 'border-slate-300'}`}`}
             style={{ transform: 'scaleX(-1)' }}
             aria-label="Kamera latihan"
           />
+          {layar.nama === 'gerakan' && (
+            <canvas ref={kanvasRef} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" />
+          )}
+          {layar.nama === 'panduan' && gating && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-2xl bg-black/55 px-4 py-3 text-center text-xl font-semibold text-white sm:text-3xl"
+            >
+              Posisikan kepala sampai pangkuan ke dalam bingkai
+            </div>
+          )}
+          {layar.nama === 'kalibrasi' && (
+            <LayarKalibrasi key={layar.gagalKalibrasi} onSelesai={handleKalibrasiSelesai} />
+          )}
         </div>
       ) : <span hidden />}
 
@@ -384,7 +440,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
                 >
                   Coba lagi
                 </button>
-                <button onClick={() => router.push(kembali)} className="rc-btn-2 flex-1">
+                <button onClick={keluar} className="rc-btn-2 flex-1">
                   Kembali
                 </button>
               </div>
@@ -400,12 +456,8 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
         </div>
       )}
 
-      {layar.nama === 'panduan' && (
-        <LayarPanduan bantuan={layar.bantuan} gating={gating} onSiap={() => kirimAksi({ t: 'siap' })} />
-      )}
-
-      {layar.nama === 'kalibrasi' && (
-        <LayarKalibrasi key={layar.gagalKalibrasi} onSelesai={handleKalibrasiSelesai} />
+      {(layar.nama === 'panduan' || layar.nama === 'kalibrasi') && (
+        <LayarPanduan bantuan={layar.bantuan} gating={gating} />
       )}
 
       {layar.nama === 'gerakan' && (
@@ -435,9 +487,9 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
           pesanSimpan={pesanSimpan}
           nyeriSudahDipilih={nyeriSudahDipilih}
           onNyeri={!tamu ? handleNyeri : undefined}
-          onSelesai={handleSelesai}
+          onSelesai={keluar}
         />
       )}
-    </div>
+    </DashboardShell>
   );
 }

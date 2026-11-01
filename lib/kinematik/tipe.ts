@@ -61,6 +61,9 @@ export type Penanda = {
   bahu: boolean;
 };
 
+// Tingkat pelanggaran = nilai fitur ÷ ambang; 1 = suara koreksi menyala. null = bagian dimatikan terapis.
+export type Tingkat = { batang: number | null; bahu: number | null };
+
 export type KonfigSesi = {
   sisi: Sisi; durasiPersen: number; tolBatang: Toleransi; tolBahu: Toleransi;
   mode: ModeKoreksi; kalimat: KalimatCondong; kandidat: Kandidat; suaraCondong: boolean;
@@ -86,7 +89,7 @@ export type HasilRepetisi = {
 };
 
 export type EventMesin =
-  | { jenis: 'sampel'; t: number; status: StatusRep; gating: boolean; skor: number; diDalam: boolean; fitur: Fitur; penanda: Penanda }
+  | { jenis: 'sampel'; t: number; status: StatusRep; gating: boolean; skor: number; diDalam: boolean; fitur: Fitur; penanda: Penanda; tingkat: Tingkat }
   | { jenis: 'gating'; aktif: boolean; t: number }
   | { jenis: 'koreksi'; sub: SubSinyal; kode: KodeKoreksi; tDeteksi: number }
   | { jenis: 'repetisi'; hasil: HasilRepetisi; hitungan: number; bagus: boolean };

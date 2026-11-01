@@ -4,12 +4,48 @@ import { useState } from 'react';
 import { supabase, pesanGalat } from '../lib/supabase';
 import { IkonGoogle } from './AuthLayout';
 
-type PeranDaftar = 'fisioterapis' | 'pasien';
+export type PeranDaftar = 'fisioterapis' | 'pasien';
 
 const NAMA_PERAN: Record<PeranDaftar, string> = {
   fisioterapis: 'Fisioterapis',
   pasien: 'Pasien',
 };
+
+/** Teks tombol sign up sesuai pilihan (label persis V9). */
+export function labelDaftar(p: PeranDaftar | ''): string {
+  return p ? `Sign Up as ${NAMA_PERAN[p]}` : 'Sign Up with Google';
+}
+
+/** Select "Daftar Sebagai" yang dipakai /daftar dan PilihPeran. */
+export function PilihanPeran({ id, value, onChange }: {
+  id: string;
+  value: PeranDaftar | '';
+  onChange: (p: PeranDaftar | '') => void;
+}) {
+  return (
+    <>
+      <label htmlFor={id} className="text-sm font-medium">Pilih Peran Anda</label>
+      <div className="relative">
+        <select
+          id={id}
+          value={value}
+          onChange={e => onChange(e.target.value as PeranDaftar | '')}
+          className="min-h-[44px] w-full appearance-none rounded-sm border border-black/30 bg-white px-3 pr-10 text-sm text-ink"
+        >
+          <option value="">Daftar Sebagai</option>
+          <option value="fisioterapis">{NAMA_PERAN.fisioterapis}</option>
+          <option value="pasien">{NAMA_PERAN.pasien}</option>
+        </select>
+        <svg
+          width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink"
+        >
+          <path fill="currentColor" d="M7 10l5 5 5-5z" />
+        </svg>
+      </div>
+    </>
+  );
+}
 
 /**
  * Untuk akun yang sudah login Google tetapi belum punya peran: memanggil RPC `daftar`
@@ -53,33 +89,11 @@ export default function PilihPeran({ kunci, onSelesai, onKeluar }: {
       {galat && <div role="alert" className="rc-alert">{galat}</div>}
 
       <div className="flex flex-col gap-3 mt-4">
-        {!kunci && (
-          <>
-            <label htmlFor="pilih-peran" className="text-sm font-medium">Pilih Peran Anda</label>
-            <div className="relative">
-              <select
-                id="pilih-peran"
-                value={pilihan}
-                onChange={e => setPilihan(e.target.value as PeranDaftar | '')}
-                className="min-h-[44px] w-full appearance-none rounded-sm border border-black/30 bg-white px-3 pr-10 text-sm text-ink"
-              >
-                <option value="">Daftar Sebagai</option>
-                <option value="fisioterapis">{NAMA_PERAN.fisioterapis}</option>
-                <option value="pasien">{NAMA_PERAN.pasien}</option>
-              </select>
-              <svg
-                width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink"
-              >
-                <path fill="currentColor" d="M7 10l5 5 5-5z" />
-              </svg>
-            </div>
-          </>
-        )}
+        {!kunci && <PilihanPeran id="pilih-peran" value={pilihan} onChange={setPilihan} />}
 
         <button onClick={handleDaftar} disabled={!pilihan || sibuk} className="rc-btn-google">
           <IkonGoogle />
-          {sibuk ? 'Memproses…' : pilihan ? `Sign Up as ${NAMA_PERAN[pilihan]}` : 'Sign Up with Google'}
+          {sibuk ? 'Memproses…' : labelDaftar(pilihan)}
         </button>
         <button onClick={handleKeluar} disabled={sibuk} className="rc-btn-2">Keluar</button>
       </div>

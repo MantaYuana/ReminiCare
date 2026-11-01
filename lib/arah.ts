@@ -16,6 +16,8 @@ export function ruteUntuk(p: Peran, lanjut: string | null): string | null {
     case 'pasien_baru':
       return lanjutAman(lanjut) ?? '/pasien';
     case 'luring':
+      // tanpa uid pun tetap /pasien: itu sesi yang gagal di-refresh karena luring, bukan belum masuk
+      // (belum masuk sudah dipetakan cekPeran ke 'keluar')
       return '/pasien';
     case 'tanpa_peran':
     case 'keluar':
@@ -27,4 +29,11 @@ export function ruteUntuk(p: Peran, lanjut: string | null): string | null {
 export function normalKode(s: string): string | null {
   const k = s.replace(/\s+/g, '').toUpperCase();
   return /^[0-9A-F]{8}$/.test(k) ? k : null;
+}
+
+/** Isi QR dari fisioterapis (tautan `.../k/KODE`) atau kode polos; null bila bukan kode klaim. */
+export function kodeDariQR(isi: string): string | null {
+  const t = isi.trim();
+  const dariTautan = /\/k\/([^/?#\s]+)\/?(?:[?#].*)?$/i.exec(t);
+  return normalKode(dariTautan ? dariTautan[1] : t);
 }

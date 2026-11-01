@@ -65,6 +65,27 @@ export function simpanResep(r: ResepLokal): boolean {
   return tulisJson('rc_resep', r);
 }
 
+/** Kolom baris pasien yang membentuk ResepLokal (select Supabase). */
+export const KOLOM_RESEP =
+  'id, nama_panggilan, sisi_terdampak, gerakan, repetisi, sesi_per_minggu, toleransi_batang, toleransi_bahu, durasi_persen, mode_koreksi, kalimat_condong';
+
+/** Baris pasien (select KOLOM_RESEP) → ResepLokal; kolom lain di baris tidak ikut tersimpan. */
+export function keResepLokal(b: { id: string } & Omit<ResepLokal, 'pasien_id'>): ResepLokal {
+  return {
+    pasien_id: b.id,
+    nama_panggilan: b.nama_panggilan,
+    sisi_terdampak: b.sisi_terdampak,
+    gerakan: b.gerakan,
+    repetisi: b.repetisi,
+    sesi_per_minggu: b.sesi_per_minggu,
+    toleransi_batang: b.toleransi_batang,
+    toleransi_bahu: b.toleransi_bahu,
+    durasi_persen: b.durasi_persen,
+    mode_koreksi: b.mode_koreksi,
+    kalimat_condong: b.kalimat_condong,
+  };
+}
+
 // ── Riwayat ────────────────────────────────────────────────────────────────
 
 const MAKS_RIWAYAT = 30;

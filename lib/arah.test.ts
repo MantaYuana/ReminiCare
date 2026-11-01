@@ -1,6 +1,23 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalKode, ruteUntuk } from './arah.ts';
+import { kodeDariQR, normalKode, ruteUntuk } from './arah.ts';
+
+describe('kodeDariQR', () => {
+  it('mengambil kode dari tautan klaim', () => {
+    assert.equal(kodeDariQR('https://reminicare.app/k/3f9a12cb'), '3F9A12CB');
+    assert.equal(kodeDariQR('http://localhost:3000/k/3F9A12CB?x=1'), '3F9A12CB');
+  });
+
+  it('menerima kode polos', () => {
+    assert.equal(kodeDariQR(' 3F9A12CB '), '3F9A12CB');
+  });
+
+  it('menolak isi lain', () => {
+    assert.equal(kodeDariQR('https://contoh.com/halaman'), null);
+    assert.equal(kodeDariQR('https://contoh.com/k/xyz'), null);
+    assert.equal(kodeDariQR(''), null);
+  });
+});
 
 describe('normalKode', () => {
   it('membuang spasi dan membesarkan huruf', () => {
@@ -25,7 +42,8 @@ describe('ruteUntuk', () => {
     assert.equal(ruteUntuk({ jenis: 'terapis', uid: 'u', nama: 'A' }, null), '/terapis');
     assert.equal(ruteUntuk({ jenis: 'pasien', uid: 'u', pasienId: 'p' }, null), '/pasien');
     assert.equal(ruteUntuk({ jenis: 'pasien_baru', uid: 'u' }, null), '/pasien');
-    assert.equal(ruteUntuk({ jenis: 'luring' }, null), '/pasien');
+    assert.equal(ruteUntuk({ jenis: 'luring', uid: 'u' }, null), '/pasien');
+    assert.equal(ruteUntuk({ jenis: 'luring' }, null), '/pasien', 'luring tanpa uid = refresh token gagal karena luring');
     assert.equal(ruteUntuk({ jenis: 'tanpa_peran', uid: 'u' }, null), null);
     assert.equal(ruteUntuk({ jenis: 'keluar' }, null), null);
   });
@@ -38,7 +56,7 @@ describe('ruteUntuk', () => {
   });
 
   it('luring mengabaikan lanjut; tanpa_peran/keluar tetap di halaman', () => {
-    assert.equal(ruteUntuk({ jenis: 'luring' }, '/k/ABCD1234'), '/pasien');
+    assert.equal(ruteUntuk({ jenis: 'luring', uid: 'u' }, '/k/ABCD1234'), '/pasien');
     assert.equal(ruteUntuk({ jenis: 'tanpa_peran', uid: 'u' }, '/k/ABCD1234'), null);
     assert.equal(ruteUntuk({ jenis: 'keluar' }, '/k/ABCD1234'), null);
   });

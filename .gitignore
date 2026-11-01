@@ -32,3 +32,8 @@ next-env.d.ts
 
 # Scripts helper
 scripts/
+
+.taste-skill/
+.claude/
+.agents/
+skills-lock.json

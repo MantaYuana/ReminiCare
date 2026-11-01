@@ -88,7 +88,7 @@ export default function Page() {
     <DashboardShell
       judul="Beranda mode tamu"
       atas={menuAtas}
-      tombol={{ label: 'Kembali Ke Login', ikon: <IkonKeluar />, href: '/' }}
+      tombol={{ label: 'Kembali Ke Login', ikon: <IkonKeluar />, href: '/masuk' }}
       panel={<PanelFisioterapis terhubung={false} pesanKosong="Mode tamu tidak terhubung dengan fisioterapis" />}
     >
       <BannerSambutan label="Mode tamu !" judul="Sudah Siap Untuk Latihan Bersama ReminiCare Hari ini?" />

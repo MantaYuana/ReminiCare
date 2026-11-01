@@ -24,6 +24,7 @@
   --color-slate-900: #141819;
 
   --font-sans: var(--font-poppins), "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
 :root {

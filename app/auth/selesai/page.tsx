@@ -27,11 +27,11 @@ function Isi() {
     sudahJalan.current = true;
 
     async function selesaikan() {
-      if (adaError) { router.replace('/?galat=oauth'); return; }
+      if (adaError) { router.replace('/masuk?galat=oauth'); return; }
 
       // supabase-js menukar ?code= sendiri saat inisialisasi; getSession menunggu penukaran itu selesai.
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace('/?galat=oauth'); return; }
+      if (!session) { router.replace('/masuk?galat=oauth'); return; }
 
       if (peran) {
         const { error } = await supabase.rpc('daftar', { p_peran: peran });
@@ -40,7 +40,7 @@ function Isi() {
             await supabase.auth.signOut();
             // Dari tautan klaim: kembali ke /k supaya pasien bisa pilih akun lain tanpa memindai ulang QR
             const tujuan = lanjutAman(lanjut);
-            router.replace(tujuan?.startsWith('/k/') ? `${tujuan}?galat=peran_lain` : '/?galat=peran_lain');
+            router.replace(tujuan?.startsWith('/k/') ? `${tujuan}?galat=peran_lain` : '/masuk?galat=peran_lain');
           } else {
             setGalat(pesanGalat(error));
             setTampil('galat');
@@ -51,27 +51,27 @@ function Isi() {
 
       const p = await cekPeran();
       if (p.jenis === 'tanpa_peran') { setTampil('pilih'); return; }
-      router.replace(ruteUntuk(p, lanjut) ?? '/');
+      router.replace(ruteUntuk(p, lanjut) ?? '/masuk');
     }
     selesaikan();
   }, [router, adaError, peran, lanjut]);
 
   async function setelahPilih() {
     const p = await cekPeran();
-    router.replace(ruteUntuk(p, lanjut) ?? '/');
+    router.replace(ruteUntuk(p, lanjut) ?? '/masuk');
   }
 
   if (tampil === 'pilih') {
     // Datang dari tautan klaim: peran dikunci ke pasien, karena peran tidak bisa diganti setelah dipilih
     const kunci = lanjutAman(lanjut)?.startsWith('/k/') ? 'pasien' : undefined;
-    return <PilihPeran kunci={kunci} onSelesai={setelahPilih} onKeluar={() => router.replace('/')} />;
+    return <PilihPeran kunci={kunci} onSelesai={setelahPilih} onKeluar={() => router.replace('/masuk')} />;
   }
 
   if (tampil === 'galat') {
     return (
       <>
         <div role="alert" className="rc-alert">{galat}</div>
-        <button onClick={() => router.replace('/')} className="rc-btn-2">Kembali ke halaman masuk</button>
+        <button onClick={() => router.replace('/masuk')} className="rc-btn-2">Kembali ke halaman masuk</button>
       </>
     );
   }

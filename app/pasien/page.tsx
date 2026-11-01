@@ -142,7 +142,7 @@ export default function Page() {
     } catch { /* abaikan */ }
 
     await supabase.auth.signOut();
-    router.replace('/?pesan=dihapus');
+    router.replace('/masuk?pesan=dihapus');
   }
 
   async function handleKeluar() {

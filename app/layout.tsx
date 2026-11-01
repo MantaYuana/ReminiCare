@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Poppins } from 'next/font/google'
+import { IBM_Plex_Mono, Poppins } from 'next/font/google'
 import './globals.css'
 import PemicuAntrean from '../components/PemicuAntrean'
 
@@ -8,6 +8,13 @@ const poppins = Poppins({
   weight: ['400', '500', '600', '700'],
   display: 'swap',
   variable: '--font-poppins',
+})
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  display: 'swap',
+  variable: '--font-plex-mono',
 })
 
 export const metadata: Metadata = {
@@ -25,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="id" className={poppins.variable}>
+    <html lang="id" className={`${poppins.variable} ${plexMono.variable}`}>
       <body className="min-h-screen text-lg">
         <PemicuAntrean />
         {children}

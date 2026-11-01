@@ -366,7 +366,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
       judul="Sesi latihan"
       atas={menuAtas}
       bawah={tamu ? [] : [{ label: 'Settings', ikon: <IkonPengaturan />, nonaktif: true }]}
-      tombol={tamu ? { label: 'Kembali Ke Login', ikon: <IkonKeluar />, href: '/' } : undefined}
+      tombol={tamu ? { label: 'Kembali Ke Login', ikon: <IkonKeluar />, href: '/masuk' } : undefined}
       tanpaCari
       penuh={layar.nama === 'gerakan'}
     >

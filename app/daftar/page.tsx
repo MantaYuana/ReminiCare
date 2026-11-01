@@ -46,7 +46,7 @@ export default function Page() {
           </div>
 
           <p className="text-center text-sm">
-            Sudah Punya Akun? <Link href="/" className="rc-tautan text-sm! font-semibold">Masuk</Link>
+            Sudah Punya Akun? <Link href="/masuk" className="rc-tautan text-sm! font-semibold">Masuk</Link>
           </p>
         </>
       )}

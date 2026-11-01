@@ -90,6 +90,9 @@ export const IkonSuara = (p: P) => (
 export const IkonBerhenti = (p: P) => (
   <Dasar {...p}><rect x="6" y="6" width="12" height="12" rx="2" /></Dasar>
 );
+export const IkonBintang = (p: P) => (
+  <Dasar {...p}><path d="M12 3c.6 4.8 3.2 7.4 8 8-4.8.6-7.4 3.2-8 8-.6-4.8-3.2-7.4-8-8 4.8-.6 7.4-3.2 8-8z" /></Dasar>
+);
 export const IkonTambah = (p: P) => (
   <Dasar {...p}><path d="M12 5v14" /><path d="M5 12h14" /></Dasar>
 );

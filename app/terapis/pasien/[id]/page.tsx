@@ -11,13 +11,18 @@ import {
   type Peran,
 } from '../../../../lib/supabase';
 import Grafik, { type TitikGrafik } from '../../../../components/Grafik';
-import FormResep, {
-  type SisiTerdampak,
-  type JenisGerakan,
-  type TingkatToleransi,
-  type ModeKoreksiResep,
-  type PilihanKalimatCondong,
+import type {
+  SisiTerdampak,
+  JenisGerakan,
+  TingkatToleransi,
+  ModeKoreksiResep,
+  PilihanKalimatCondong,
 } from '../../../../components/FormResep';
+import { useTerapis } from '../../../../components/terapis/useTerapis';
+import KerangkaTerapis from '../../../../components/terapis/KerangkaTerapis';
+import LayarMuat from '../../../../components/LayarMuat';
+import SkeletonDetail from '../../../../components/terapis/SkeletonDetail';
+import { IkonBintang, IkonPanahBawah, IkonPanahKiri, IkonPeringatan } from '../../../../components/ikon';
 import type { MasukanRingkasan } from '../../../../lib/ringkasan';
 
 interface PasienDetail {
@@ -276,9 +281,41 @@ function renderLencanaSintetis(isSintetis: boolean): React.JSX.Element {
   );
 }
 
+const KELAS_KEPALA_KARTU =
+  'flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-[#4aa9ab] to-[#0b7f87] px-5 py-3 text-white';
+
+/** Kartu bagian: kepala gradien teal berisi judul (dan aksi), badan putih. */
+function KartuBagian({
+  id,
+  judul,
+  ket,
+  aksi,
+  children,
+}: {
+  id: string;
+  judul: string;
+  ket?: string;
+  aksi?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className={KELAS_KEPALA_KARTU}>
+        <div>
+          <h2 id={id} className="text-base font-semibold">{judul}</h2>
+          {ket && <p className="text-sm text-white/90">{ket}</p>}
+        </div>
+        {aksi}
+      </div>
+      <div className="space-y-5 p-5">{children}</div>
+    </section>
+  );
+}
+
 export default function DetailPasienPage(): React.JSX.Element {
   const params = useParams();
   const router = useRouter();
+  const t = useTerapis();
 
   // Pastikan ID bertipe string (bukan array atau undefined)
   const id =
@@ -340,6 +377,8 @@ export default function DetailPasienPage(): React.JSX.Element {
     masukan: MasukanRingkasan;
   } | null>(null);
   const [galatRingkasan, setGalatRingkasan] = useState<string | null>(null);
+  // Kotak hasil tersembunyi sampai tombol ditekan; ditutup lewat panah di tengah bawah
+  const [ringkasanTerbuka, setRingkasanTerbuka] = useState(false);
 
   // Pencegahan unmount memory leak, race condition, dan klik ganda
   const mountedRef = useRef(true);
@@ -818,6 +857,7 @@ export default function DetailPasienPage(): React.JSX.Element {
       if (!mountedRef.current || curSeq !== ringkasanSeqRef.current) return;
 
       setHasilRingkasan(data);
+      setRingkasanTerbuka(true);
     } catch (err: unknown) {
       if (!mountedRef.current || curSeq !== ringkasanSeqRef.current) return;
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -832,52 +872,20 @@ export default function DetailPasienPage(): React.JSX.Element {
     }
   }
 
-  // Tampilan selama guard peran berlangsung
-  if (sedangCekPeran) {
-    return (
-      <main className="flex min-h-screen items-center justify-center p-6 bg-slate-50">
-        <p className="text-xl font-medium text-slate-700">
-          Memeriksa izin akses...
-        </p>
-      </main>
-    );
-  }
-
-  // Tampilan selama muat awal penuh
+  // Tampilan selama guard peran dan muat awal berlangsung
+  if (sedangCekPeran) return <LayarMuat teks="Memeriksa izin akses…" />;
   if (sedangMuat) {
     return (
-      <main className="mx-auto max-w-4xl p-6">
-        <div className="flex items-center gap-3 text-slate-700">
-          <svg
-            className="h-8 w-8 animate-spin text-sky-700"
-            fill="none"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v8H4z"
-            />
-          </svg>
-          <p className="text-xl font-medium">Memuat data pasien...</p>
-        </div>
-      </main>
+      <KerangkaTerapis t={t} halaman="pasien" judul="Detail pasien" tanpaCari>
+        <SkeletonDetail />
+      </KerangkaTerapis>
     );
   }
 
   // Galat kueri awal (hanya pada muat awal penuh, B2)
   if (galatAwal) {
     return (
-      <main className="mx-auto max-w-4xl p-6">
+      <KerangkaTerapis t={t} halaman="pasien" judul="Detail pasien" tanpaCari>
         <div
           role="alert"
           className="rounded-xl border border-red-300 bg-red-50 p-6 text-red-900"
@@ -886,21 +894,21 @@ export default function DetailPasienPage(): React.JSX.Element {
           <p className="mt-2 text-lg">{galatAwal}</p>
           <div className="mt-6">
             <Link
-              href="/terapis"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-sky-700 px-6 py-3 text-lg font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500"
+              href="/terapis/pasien"
+              className="rc-btn-2"
             >
-              Kembali ke Daftar Pasien
+              Kembali ke Semua Pasien
             </Link>
           </div>
         </div>
-      </main>
+      </KerangkaTerapis>
     );
   }
 
   // Pasien tidak ditemukan atau bukan milik terapis ini
   if (!pasien) {
     return (
-      <main className="mx-auto max-w-4xl p-6">
+      <KerangkaTerapis t={t} halaman="pasien" judul="Detail pasien" tanpaCari>
         <div
           role="alert"
           className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-900"
@@ -911,14 +919,14 @@ export default function DetailPasienPage(): React.JSX.Element {
           </p>
           <div className="mt-6">
             <Link
-              href="/terapis"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-sky-700 px-6 py-3 text-lg font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500"
+              href="/terapis/pasien"
+              className="rc-btn-2"
             >
-              Kembali ke Daftar Pasien
+              Kembali ke Semua Pasien
             </Link>
           </div>
         </div>
-      </main>
+      </KerangkaTerapis>
     );
   }
 
@@ -1013,7 +1021,8 @@ export default function DetailPasienPage(): React.JSX.Element {
     prioritas?.sesi_per_minggu ?? pasien.sesi_per_minggu ?? 3;
 
   return (
-    <main className="mx-auto max-w-4xl p-6 space-y-8">
+    <KerangkaTerapis t={t} halaman="pasien" judul="Detail pasien" tanpaCari>
+      <div className="flex w-full flex-col gap-6">
       {/* Banner galat muat ulang senyap (B2) */}
       {galatMuatUlang && (
         <div
@@ -1034,67 +1043,229 @@ export default function DetailPasienPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* 1. KEPALA HALAMAN (Header) */}
-      <header className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-slate-900">
-                {pasien.nama_panggilan}
-              </h1>
-              {pasien.is_sintetis && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-300 bg-purple-100 px-3 py-1 text-lg font-semibold text-purple-800">
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-                    />
-                  </svg>
-                  Data sintetis
-                </span>
-              )}
-              {menyegarkan && (
-                <span className="text-lg font-medium text-slate-500 animate-pulse">
-                  (Menyegarkan data...)
-                </span>
+      {/* 1. KEPALA HALAMAN */}
+      <div className="flex flex-col gap-4">
+        <Link
+          href="/terapis/pasien"
+          className="-ml-2 inline-flex min-h-[44px] w-fit items-center gap-1 rounded-lg px-2 text-base font-medium text-brand-700 transition-colors hover:bg-brand-50"
+        >
+          <IkonPanahKiri className="h-5 w-5" />
+          Semua Pasien
+        </Link>
+
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
+            <span
+              aria-hidden="true"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xl font-semibold text-brand-700"
+            >
+              {pasien.nama_panggilan.trim()[0]?.toUpperCase() ?? '?'}
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-2xl font-semibold">{pasien.nama_panggilan}</h2>
+              {(pasien.is_sintetis || menyegarkan) && (
+                <p className="text-sm text-muted">
+                  {pasien.is_sintetis && 'Data sintetis'}
+                  {pasien.is_sintetis && menyegarkan && ' · '}
+                  {menyegarkan && <span className="animate-pulse">Menyegarkan data…</span>}
+                </p>
               )}
             </div>
-            <p className="text-xl text-slate-700">
-              Sisi terdampak:{' '}
-              <span className="font-semibold capitalize">
-                {pasien.sisi_terdampak}
-              </span>
-            </p>
           </div>
 
           <Link
-            href="/terapis"
-            className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-lg font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-400"
+            href={`/terapis/pasien/${pasien.id}/ubah`}
+            className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-brand-700 px-5 text-base font-semibold text-white transition-colors hover:bg-brand-800"
           >
-            ← Kembali ke Daftar
+            Ubah Resep Latihan
           </Link>
-        </div>
-      </header>
+        </header>
+      </div>
 
-      {/* 2. ESKALASI TERBUKA (SPEC §10.4 butir 2, §14 F14) */}
-      {terbuka && (
-        <section
-          aria-labelledby="judul-eskalasi-terbuka"
-          className="rounded-xl border-2 border-amber-400 bg-amber-50/50 p-6 shadow-sm space-y-6"
+      {/* 6. RINGKASAN AI: banner; kotak hasil muncul setelah tombol ditekan, ditutup lewat panah */}
+      <section aria-labelledby="judul-ringkasan-ai" className="flex flex-col">
+        <div
+          className={`flex flex-wrap items-center gap-4 bg-gradient-to-r from-[#4aa9ab] to-[#0b7f87] px-6 py-5 text-white transition-[border-radius] duration-300 motion-reduce:transition-none ${
+            hasilRingkasan && ringkasanTerbuka ? 'rounded-t-2xl' : 'rounded-2xl'
+          }`}
         >
-          {/* Kartu peringatan dengan ikon + teks "Eskalasi terbuka" */}
-          <div className="flex flex-wrap items-start justify-between gap-4">
+          <IkonBintang className="h-12 w-12 text-white/50" />
+          <div className="min-w-0 flex-1">
+            <h2 id="judul-ringkasan-ai" className="text-base font-semibold">
+              Buat Ringkasan Pasien Dari Remini AI
+            </h2>
+            <p className="text-sm text-white/90">
+              Hanya angka tanpa nama yang dikirim ke layanan AI Google (Gemini). Ringkasan tidak mengubah resep.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={hasilRingkasan && !ringkasanTerbuka ? () => setRingkasanTerbuka(true) : buatRingkasan}
+            disabled={sedangRingkas}
+            aria-busy={sedangRingkas}
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full bg-ink px-6 text-sm font-semibold text-white transition-colors hover:bg-black disabled:opacity-60"
+          >
+            {sedangRingkas ? (
+              <>
+                <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none" />
+                Menyusun Ringkasan…
+              </>
+            ) : hasilRingkasan ? (
+              ringkasanTerbuka ? 'Buat Ulang' : 'Lihat Ringkasan'
+            ) : (
+              'Buat Ringkasan'
+            )}
+          </button>
+        </div>
+
+        {galatRingkasan && (
+          <div role="alert" className="rc-alert mt-3">
+            {galatRingkasan}
+          </div>
+        )}
+
+        {/* Kontainer role="status" aria-live="polite" selalu dirender di DOM agar screen reader mendeteksi pembaruan konten */}
+        <div role="status" aria-live="polite">
+          {hasilRingkasan && (
+            <div
+              className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+                ringkasanTerbuka ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              }`}
+              aria-hidden={!ringkasanTerbuka}
+              inert={!ringkasanTerbuka}
+            >
+              <div className="overflow-hidden">
+                <div className="space-y-4 rounded-b-2xl border border-t-0 border-brand-600 bg-white p-6">
+              <div className="flex flex-wrap items-center gap-3">
+                      {hasilRingkasan.sumber === 'ai' ? (
+                        <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 font-bold text-emerald-900 text-lg">
+                          <svg
+                            className="h-6 w-6 text-emerald-700 shrink-0"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                            />
+                          </svg>
+                          <span>Ringkasan AI, cek grafik sebelum memutuskan</span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 font-bold text-amber-950 text-lg">
+                          <svg
+                            className="h-6 w-6 text-amber-700 shrink-0"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          <span>Ringkasan templat, cek grafik sebelum memutuskan</span>
+                          {hasilRingkasan.alasan && (
+                            <span className="rounded bg-amber-200/80 px-2 py-0.5 font-medium text-amber-900 text-lg">
+                              {hasilRingkasan.alasan === 'tanpa_kunci'
+                                ? 'Kunci layanan AI belum diatur'
+                                : hasilRingkasan.alasan === 'api_gagal'
+                                ? 'Layanan AI tidak dapat dihubungi'
+                                : 'Keluaran AI ditolak pemeriksaan otomatis'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-lg leading-relaxed text-slate-800">
+                      {hasilRingkasan.teks}
+                    </p>
+
+                    <details className="pt-2">
+                      <summary className="cursor-pointer text-lg font-semibold text-sky-700 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded select-none inline-flex min-h-[44px] items-center">
+                        Lihat angka yang dikirim
+                      </summary>
+                      <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-lg text-slate-800">
+                        {JSON.stringify(hasilRingkasan.masukan, null, 2)}
+                      </pre>
+                    </details>
+
+                  <div className="flex justify-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setRingkasanTerbuka(false)}
+                      aria-label="Tutup ringkasan"
+                      className="flex h-11 w-11 items-center justify-center rounded-full text-ink transition-colors hover:bg-brand-50"
+                    >
+                      <IkonPanahBawah className="h-6 w-6 rotate-180" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Identitas pasien (hanya baca; ubah lewat Ubah Resep Latihan) */}
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label htmlFor="baca-nama" className="mb-1 block text-sm font-medium">Nama Pasien</label>
+          <input id="baca-nama" readOnly value={pasien.nama_panggilan} className="min-h-[48px] w-full rounded-lg bg-slate-50 px-3 text-base text-muted" />
+        </div>
+        <div>
+          <label htmlFor="baca-sisi" className="mb-1 block text-sm font-medium">Sisi Terdampak</label>
+          <input id="baca-sisi" readOnly value={pasien.sisi_terdampak === 'kiri' ? 'Lengan kiri' : 'Lengan kanan'} className="min-h-[48px] w-full rounded-lg bg-slate-50 px-3 text-base text-muted" />
+        </div>
+      </div>
+
+      {/* 7. BAGIAN TAUTAN PERANGKAT (Fase 4c / F03) */}
+      <section
+        aria-labelledby="judul-tautan-perangkat"
+        className="space-y-4"
+      >
+        <div className="space-y-1">
+          <h2
+            id="judul-tautan-perangkat"
+            className="text-base font-medium"
+          >
+            Buat Tautan
+          </h2>
+          <p className="text-sm text-muted">
+            Klaim perangkat latihan di rumah melalui pemindaian kode QR atau
+            tautan langsung.
+          </p>
+        </div>
+
+        {galatKode && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-300 bg-red-50 p-4 text-lg font-medium text-red-900"
+          >
+            {galatKode}
+          </div>
+        )}
+
+        {/* Dialog Konfirmasi In-Page saat akan membuat tautan baru */}
+        {konfirmasiTampil && (
+          <div
+            ref={konfirmasiRef}
+            tabIndex={-1}
+            role="region"
+            aria-label="Konfirmasi buat tautan baru"
+            className="rounded-xl border-2 border-amber-400 bg-amber-50 p-6 space-y-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500"
+          >
             <div className="flex items-start gap-3">
               <svg
-                className="h-8 w-8 text-amber-700 shrink-0 mt-0.5"
+                className="h-7 w-7 text-amber-700 shrink-0 mt-0.5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -1107,24 +1278,182 @@ export default function DetailPasienPage(): React.JSX.Element {
                   d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <h2
-                    id="judul-eskalasi-terbuka"
-                    className="text-2xl font-bold text-amber-950"
-                  >
-                    Eskalasi terbuka
-                  </h2>
-                  <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-3 py-0.5 text-lg font-bold text-amber-900">
-                    Perlu evaluasi
-                  </span>
-                </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-amber-950">
+                  Konfirmasi Penggantian Tautan
+                </h3>
                 <p className="text-lg text-amber-900">
-                  Sistem tidak mengubah resep. Keputusan ada pada Anda.
+                  Membuat tautan baru membatalkan tautan lama dan melepas
+                  akun lama. Lanjutkan?
                 </p>
               </div>
             </div>
 
+            <div className="flex flex-wrap gap-4 pt-2">
+              <button
+                type="button"
+                onClick={eksekusiBuatKode}
+                disabled={sedangBuatKode}
+                className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-amber-600 px-6 py-4 text-xl font-bold text-white hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500 disabled:opacity-50"
+              >
+                {sedangBuatKode ? 'Memproses...' : 'Ya, buat baru'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setKonfirmasiTampil(false)}
+                disabled={sedangBuatKode}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-lg font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-400"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tombol Utama Buat Tautan Perangkat */}
+        {!konfirmasiTampil && (
+          <div>
+            <button
+              type="button"
+              onClick={handleKlikBuatTautan}
+              disabled={sedangBuatKode}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-lg bg-brand-700 px-6 text-base font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-50"
+            >
+              {sedangBuatKode ? (
+                <span className="flex items-center gap-3">
+                  <svg
+                    className="h-6 w-6 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
+                  </svg>
+                  Menghasilkan Tautan...
+                </span>
+              ) : (
+                'Buat Tautan'
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Tampilan QR Code dan Tautan jika kode aktif tersedia */}
+        {tautanAktif && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 space-y-6">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              {/* Gambar QR Code atau Pesan Fallback bila QR Gagal Dibuat */}
+              <div className="shrink-0 text-center space-y-2">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt={`Kode QR untuk tautan pendaftaran perangkat pasien ${pasien.nama_panggilan}`}
+                    width={280}
+                    height={280}
+                    className="rounded-xl border border-slate-300 bg-white p-3 shadow-sm mx-auto"
+                  />
+                ) : pesanGagalQr ? (
+                  <div className="flex h-[280px] w-[280px] items-center justify-center rounded-xl border border-amber-300 bg-amber-50 p-4 text-center text-lg font-medium text-amber-900 mx-auto">
+                    {pesanGagalQr}
+                  </div>
+                ) : null}
+                <p className="text-lg font-mono font-bold tracking-wider text-slate-800">
+                  Kode: {kodeAktif}
+                </p>
+              </div>
+
+              {/* Detail Tautan, Salin, & Kedaluwarsa */}
+              <div className="flex-1 space-y-4 w-full">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="kolom-tautan-perangkat"
+                    className="block text-lg font-semibold text-slate-800"
+                  >
+                    Alamat Tautan Pasien
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      id="kolom-tautan-perangkat"
+                      type="text"
+                      readOnly
+                      value={tautanAktif}
+                      className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-lg font-mono text-slate-800 select-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={salinTautan}
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-sky-700 px-6 py-3 text-lg font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500 shrink-0"
+                    >
+                      Salin tautan
+                    </button>
+                  </div>
+                  {statusSalin === 'tersalin' && (
+                    <p
+                      role="status"
+                      className="text-lg font-medium text-emerald-700"
+                    >
+                      ✓ Tersalin
+                    </p>
+                  )}
+                  {statusSalin === 'gagal' && (
+                    <p
+                      role="status"
+                      className="text-lg font-medium text-red-600"
+                    >
+                      Gagal menyalin, salin manual
+                    </p>
+                  )}
+                </div>
+
+                {tanggalKedaluwarsa && (
+                  <p className="text-lg text-slate-700">
+                    Kedaluwarsa:{' '}
+                    <span className="font-semibold text-slate-900">
+                      {tanggalKedaluwarsa}
+                    </span>
+                  </p>
+                )}
+
+                {/* Peringatan Persis sesuai Spec */}
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                  <p className="text-lg font-medium text-amber-950">
+                    Kode lama dibatalkan dan akun lama dilepas.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 2. ESKALASI TERBUKA (SPEC §10.4 butir 2, §14 F14) */}
+      {terbuka && (
+        <section
+          aria-labelledby="judul-eskalasi-terbuka"
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div className={KELAS_KEPALA_KARTU}>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 id="judul-eskalasi-terbuka" className="text-base font-semibold">
+                Eskalasi Terbuka
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-300 px-3 py-0.5 text-xs font-semibold text-ink">
+                <IkonPeringatan className="h-4 w-4" />
+                Perlu evaluasi
+              </span>
+            </div>
             {!formTinjauTerbuka && (
               <button
                 type="button"
@@ -1132,19 +1461,24 @@ export default function DetailPasienPage(): React.JSX.Element {
                   setGalatTinjau(null);
                   setFormTinjauTerbuka(true);
                 }}
-                className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-amber-600 px-8 py-4 text-xl font-bold text-white hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500 shadow-sm"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-yellow-300 px-6 text-sm font-semibold text-ink transition-colors hover:bg-yellow-200"
               >
                 Tinjau
               </button>
             )}
           </div>
 
+          <div className="space-y-5 p-5">
+          <p className="text-base text-muted">
+            Sistem tidak mengubah resep. Keputusan ada pada Anda.
+          </p>
+
           {/* Indikator run dan median baseline */}
           <div className="flex flex-wrap items-center gap-4 text-lg font-medium text-amber-950">
-            <div className="rounded-xl border border-amber-300 bg-amber-100/70 px-4 py-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
               run {terbuka.panjang_run} &gt; batas {terbuka.batas}
             </div>
-            <div className="rounded-xl border border-amber-300 bg-amber-100/70 px-4 py-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2">
               Median baseline {Number(terbuka.median_baseline).toFixed(1)}%
             </div>
           </div>
@@ -1297,7 +1631,7 @@ export default function DetailPasienPage(): React.JSX.Element {
           )}
 
           {/* Run chart eskalasi */}
-          <div className="rounded-xl border border-amber-200 bg-white p-5 space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
             <Grafik
               judul="Run chart eskalasi"
               titik={titikGrafikEskalasi}
@@ -1317,7 +1651,7 @@ export default function DetailPasienPage(): React.JSX.Element {
           </div>
 
           {/* Tabel titik data eskalasi di bawah grafik */}
-          <div className="rounded-xl border border-amber-200 bg-white p-5 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[640px]">
                 <caption className="sr-only">
@@ -1400,6 +1734,7 @@ export default function DetailPasienPage(): React.JSX.Element {
               </p>
             )}
           </div>
+          </div>
         </section>
       )}
 
@@ -1423,22 +1758,11 @@ export default function DetailPasienPage(): React.JSX.Element {
       )}
 
       {/* 3. TREN % TERKOMPENSASI PER SESI (SPEC §10.4 butir 3) */}
-      <section
-        aria-labelledby="judul-tren-kompensasi"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      <KartuBagian
+        id="judul-tren-kompensasi"
+        judul="Tren % Terkompensasi per Sesi"
+        ket="Perkembangan kompensasi postur (maksimal 30 sesi terakhir)."
       >
-        <div className="space-y-1">
-          <h2
-            id="judul-tren-kompensasi"
-            className="text-2xl font-bold text-slate-900"
-          >
-            Tren % Terkompensasi per Sesi
-          </h2>
-          <p className="text-lg text-slate-600">
-            Perkembangan kompensasi postur (maksimal 30 sesi terakhir).
-          </p>
-        </div>
-
         {daftarSesi.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-lg font-medium text-slate-700">
             Belum ada sesi latihan
@@ -1462,32 +1786,19 @@ export default function DetailPasienPage(): React.JSX.Element {
             </p>
           </div>
         )}
-      </section>
+      </KartuBagian>
 
       {/* 4. TABEL 10 SESI TERAKHIR + KEPATUHAN (SPEC §10.4 butir 4) */}
-      <section
-        aria-labelledby="judul-riwayat-sesi"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      <KartuBagian
+        id="judul-riwayat-sesi"
+        judul="10 Sesi Terakhir & Kepatuhan"
+        ket="Riwayat sesi terbaru dan tingkat kepatuhan latihan 7 hari terakhir."
+        aksi={
+          <span className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-ink">
+            7 hari: {sesi7Hari} dari {targetPerMinggu}
+          </span>
+        }
       >
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h2
-              id="judul-riwayat-sesi"
-              className="text-2xl font-bold text-slate-900"
-            >
-              10 Sesi Terakhir & Kepatuhan
-            </h2>
-            <p className="text-lg text-slate-600">
-              Riwayat sesi terbaru dan tingkat kepatuhan latihan 7 hari terakhir.
-            </p>
-          </div>
-          <div className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-2.5">
-            <p className="text-lg font-bold text-sky-950">
-              7 hari: {sesi7Hari} dari {targetPerMinggu}
-            </p>
-          </div>
-        </div>
-
         {daftarSesi.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-lg font-medium text-slate-700">
             Belum ada sesi latihan
@@ -1565,26 +1876,14 @@ export default function DetailPasienPage(): React.JSX.Element {
             </table>
           </div>
         )}
-      </section>
+      </KartuBagian>
 
       {/* 5. METRIK KINEMATIK PER GERAKAN (SPEC §10.4 butir 5) */}
-      <section
-        aria-labelledby="judul-kinematik"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
+      <KartuBagian
+        id="judul-kinematik"
+        judul="Metrik Kinematik per Gerakan"
+        ket="2D, untuk tren pasien ini saja"
       >
-        <div className="space-y-1">
-          <h2
-            id="judul-kinematik"
-            className="text-2xl font-bold text-slate-900"
-          >
-            Metrik Kinematik per Gerakan
-          </h2>
-          {/* Keterangan tetap sesuai SPEC: "2D, untuk tren pasien ini saja" */}
-          <p className="text-lg text-slate-600">
-            2D, untuk tren pasien ini saja
-          </p>
-        </div>
-
         {daftarSesi.length === 0 ||
         !pasien.gerakan ||
         pasien.gerakan.length === 0 ? (
@@ -1720,379 +2019,8 @@ export default function DetailPasienPage(): React.JSX.Element {
             })}
           </div>
         )}
-      </section>
-
-      {/* 6. BAGIAN RINGKASAN AI (Fase 7 / F20, SPEC §9, §10.4 butir 6) */}
-      <section
-        aria-labelledby="judul-ringkasan-ai"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
-      >
-        <div className="space-y-1">
-          <h2
-            id="judul-ringkasan-ai"
-            className="text-2xl font-bold text-slate-900"
-          >
-            Ringkasan AI
-          </h2>
-          <p className="text-lg text-slate-600">
-            Hanya angka tanpa nama yang dikirim ke layanan AI Google (Gemini).
-            Ringkasan tidak mengubah resep.
-          </p>
-        </div>
-
-        {galatRingkasan && (
-          <div
-            role="alert"
-            className="rounded-lg border border-red-300 bg-red-50 p-4 text-lg font-medium text-red-900"
-          >
-            {galatRingkasan}
-          </div>
-        )}
-
-        <div>
-          <button
-            type="button"
-            onClick={buatRingkasan}
-            disabled={sedangRingkas}
-            aria-busy={sedangRingkas}
-            className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-sky-700 px-8 py-4 text-xl font-bold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500 disabled:opacity-50 shadow-sm"
-          >
-            {sedangRingkas ? (
-              <span className="flex items-center gap-3">
-                <svg
-                  className="h-6 w-6 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z"
-                  />
-                </svg>
-                Menyusun Ringkasan...
-              </span>
-            ) : (
-              'Buat ringkasan'
-            )}
-          </button>
-        </div>
-
-        {/* Kontainer role="status" aria-live="polite" selalu dirender di DOM agar screen reader mendeteksi pembaruan konten */}
-        <div role="status" aria-live="polite">
-          {hasilRingkasan && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                {hasilRingkasan.sumber === 'ai' ? (
-                  <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 font-bold text-emerald-900 text-lg">
-                    <svg
-                      className="h-6 w-6 text-emerald-700 shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                      />
-                    </svg>
-                    <span>Ringkasan AI, cek grafik sebelum memutuskan</span>
-                  </div>
-                ) : (
-                  <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 font-bold text-amber-950 text-lg">
-                    <svg
-                      className="h-6 w-6 text-amber-700 shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <span>Ringkasan templat, cek grafik sebelum memutuskan</span>
-                    {hasilRingkasan.alasan && (
-                      <span className="rounded bg-amber-200/80 px-2 py-0.5 font-medium text-amber-900 text-lg">
-                        {hasilRingkasan.alasan === 'tanpa_kunci'
-                          ? 'Kunci layanan AI belum diatur'
-                          : hasilRingkasan.alasan === 'api_gagal'
-                          ? 'Layanan AI tidak dapat dihubungi'
-                          : 'Keluaran AI ditolak pemeriksaan otomatis'}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <p className="text-lg leading-relaxed text-slate-800">
-                {hasilRingkasan.teks}
-              </p>
-
-              <details className="pt-2">
-                <summary className="cursor-pointer text-lg font-semibold text-sky-700 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 rounded select-none inline-flex min-h-[44px] items-center">
-                  Lihat angka yang dikirim
-                </summary>
-                <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-300 bg-white p-4 font-mono text-lg text-slate-800">
-                  {JSON.stringify(hasilRingkasan.masukan, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* 7. BAGIAN TAUTAN PERANGKAT (Fase 4c / F03) */}
-      <section
-        aria-labelledby="judul-tautan-perangkat"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
-      >
-        <div className="space-y-1">
-          <h2
-            id="judul-tautan-perangkat"
-            className="text-2xl font-bold text-slate-900"
-          >
-            Tautan Perangkat Pasien
-          </h2>
-          <p className="text-lg text-slate-600">
-            Klaim perangkat latihan di rumah melalui pemindaian kode QR atau
-            tautan langsung.
-          </p>
-        </div>
-
-        {galatKode && (
-          <div
-            role="alert"
-            className="rounded-lg border border-red-300 bg-red-50 p-4 text-lg font-medium text-red-900"
-          >
-            {galatKode}
-          </div>
-        )}
-
-        {/* Dialog Konfirmasi In-Page saat akan membuat tautan baru */}
-        {konfirmasiTampil && (
-          <div
-            ref={konfirmasiRef}
-            tabIndex={-1}
-            role="region"
-            aria-label="Konfirmasi buat tautan baru"
-            className="rounded-xl border-2 border-amber-400 bg-amber-50 p-6 space-y-4 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500"
-          >
-            <div className="flex items-start gap-3">
-              <svg
-                className="h-7 w-7 text-amber-700 shrink-0 mt-0.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold text-amber-950">
-                  Konfirmasi Penggantian Tautan
-                </h3>
-                <p className="text-lg text-amber-900">
-                  Membuat tautan baru membatalkan tautan lama dan melepas
-                  akun lama. Lanjutkan?
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-4 pt-2">
-              <button
-                type="button"
-                onClick={eksekusiBuatKode}
-                disabled={sedangBuatKode}
-                className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-amber-600 px-6 py-4 text-xl font-bold text-white hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-500 disabled:opacity-50"
-              >
-                {sedangBuatKode ? 'Memproses...' : 'Ya, buat baru'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setKonfirmasiTampil(false)}
-                disabled={sedangBuatKode}
-                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-lg font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-slate-400"
-              >
-                Batal
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Tombol Utama Buat Tautan Perangkat */}
-        {!konfirmasiTampil && (
-          <div>
-            <button
-              type="button"
-              onClick={handleKlikBuatTautan}
-              disabled={sedangBuatKode}
-              className="inline-flex min-h-[64px] items-center justify-center rounded-xl bg-sky-700 px-8 py-4 text-xl font-bold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500 disabled:opacity-50 shadow-sm"
-            >
-              {sedangBuatKode ? (
-                <span className="flex items-center gap-3">
-                  <svg
-                    className="h-6 w-6 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
-                  </svg>
-                  Menghasilkan Tautan...
-                </span>
-              ) : (
-                'Buat tautan perangkat'
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Tampilan QR Code dan Tautan jika kode aktif tersedia */}
-        {tautanAktif && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 space-y-6">
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              {/* Gambar QR Code atau Pesan Fallback bila QR Gagal Dibuat */}
-              <div className="shrink-0 text-center space-y-2">
-                {qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt={`Kode QR untuk tautan pendaftaran perangkat pasien ${pasien.nama_panggilan}`}
-                    width={280}
-                    height={280}
-                    className="rounded-xl border border-slate-300 bg-white p-3 shadow-sm mx-auto"
-                  />
-                ) : pesanGagalQr ? (
-                  <div className="flex h-[280px] w-[280px] items-center justify-center rounded-xl border border-amber-300 bg-amber-50 p-4 text-center text-lg font-medium text-amber-900 mx-auto">
-                    {pesanGagalQr}
-                  </div>
-                ) : null}
-                <p className="text-lg font-mono font-bold tracking-wider text-slate-800">
-                  Kode: {kodeAktif}
-                </p>
-              </div>
-
-              {/* Detail Tautan, Salin, & Kedaluwarsa */}
-              <div className="flex-1 space-y-4 w-full">
-                <div className="space-y-1">
-                  <label
-                    htmlFor="kolom-tautan-perangkat"
-                    className="block text-lg font-semibold text-slate-800"
-                  >
-                    Alamat Tautan Pasien
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                      id="kolom-tautan-perangkat"
-                      type="text"
-                      readOnly
-                      value={tautanAktif}
-                      className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-lg font-mono text-slate-800 select-all focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={salinTautan}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-lg bg-sky-700 px-6 py-3 text-lg font-semibold text-white hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-500 shrink-0"
-                    >
-                      Salin tautan
-                    </button>
-                  </div>
-                  {statusSalin === 'tersalin' && (
-                    <p
-                      role="status"
-                      className="text-lg font-medium text-emerald-700"
-                    >
-                      ✓ Tersalin
-                    </p>
-                  )}
-                  {statusSalin === 'gagal' && (
-                    <p
-                      role="status"
-                      className="text-lg font-medium text-red-600"
-                    >
-                      Gagal menyalin, salin manual
-                    </p>
-                  )}
-                </div>
-
-                {tanggalKedaluwarsa && (
-                  <p className="text-lg text-slate-700">
-                    Kedaluwarsa:{' '}
-                    <span className="font-semibold text-slate-900">
-                      {tanggalKedaluwarsa}
-                    </span>
-                  </p>
-                )}
-
-                {/* Peringatan Persis sesuai Spec */}
-                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-                  <p className="text-lg font-medium text-amber-950">
-                    Kode lama dibatalkan dan akun lama dilepas.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* 8. EDIT RESEP (SPEC §10.4 butir 8) */}
-      <section
-        aria-labelledby="judul-edit-resep"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-6"
-      >
-        <div className="space-y-1">
-          <h2
-            id="judul-edit-resep"
-            tabIndex={-1}
-            className="text-2xl font-bold text-slate-900 focus-visible:outline-none"
-          >
-            Ubah Resep Latihan
-          </h2>
-          <p className="text-lg text-slate-600">
-            Perubahan target latihan, repetisi, dan batas toleransi gerakan pasien.
-          </p>
-        </div>
-
-        {/* Pemanggilan muat(false) senyap agar FormResep tidak ter-unmount dan pesan sukses tetap tampil */}
-        <FormResep
-          key={pasien.id}
-          pasien={pasien}
-          onBerhasil={() => muat(false)}
-        />
-      </section>
-    </main>
+      </KartuBagian>
+      </div>
+    </KerangkaTerapis>
   );
 }

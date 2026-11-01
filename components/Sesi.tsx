@@ -339,7 +339,7 @@ export default function Sesi({ resep, pasienId, simpan, tamu = false, kembali, o
     { label: 'Semua Latihan', ikon: <IkonLatihan />, nonaktif: true },
     { label: 'Chat', ikon: <IkonChat />, nonaktif: true },
   ];
-  const tahap = layar.nama === 'panduan' ? 0 : layar.nama === 'kalibrasi' ? 1 : null;
+  const tahap = layar.nama === 'panduan' ? 0 : layar.nama === 'kalibrasi' ? 1 : layar.nama === 'istirahat' ? 2 : layar.nama === 'ringkasan' ? 3 : null;
 
   return (
     <DashboardShell
